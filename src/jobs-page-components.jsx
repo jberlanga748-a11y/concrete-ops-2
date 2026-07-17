@@ -1012,6 +1012,7 @@ function JobsPagePolished({
   safetyIncidents,
   toolChecklists,
   currentCompanyId,
+  companySettings,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -1043,6 +1044,7 @@ function JobsPagePolished({
         safetyIncidents={safetyIncidents}
         toolChecklists={toolChecklists}
         currentCompanyId={currentCompanyId}
+        companySettings={companySettings}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}
@@ -1071,6 +1073,7 @@ function JobsPagePolished({
         safetyIncidents={safetyIncidents}
         toolChecklists={toolChecklists}
         currentCompanyId={currentCompanyId}
+        companySettings={companySettings}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}

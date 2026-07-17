@@ -6148,6 +6148,11 @@ function sanitizeBootstrap(state, user) {
       website: settings.website || "",
       serviceArea: settings.serviceArea || "",
       toolChecklistEnabled: settings.toolChecklistEnabled !== false,
+      // Field roles need the trade + package tier so the client can apply the
+      // same trade-aware nav and fence-pilot simple mode as office roles. No
+      // pricing, billing, or private settings ride along with these two keys.
+      primaryTrade: settings.primaryTrade || "",
+      packageId: settings.packageId || "",
     };
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);

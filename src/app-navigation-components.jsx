@@ -46,12 +46,14 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
     },
     {
       id: "proof",
-      label: "Field Reports",
-      helper: "Proof",
+      // When reports and delivery tickets are hidden (fence-pilot simple
+      // mode), this workspace is just the photo library -- label it that way.
+      label: anyVisible(["reports", "deliveryTickets"]) ? "Field Reports" : "Photos",
+      helper: anyVisible(["reports", "deliveryTickets"]) ? "Proof" : "Job photos",
       icon: "upload",
       target: firstVisible(["uploads", "reports", "deliveryTickets", "prePour", "postPour"]),
       modules: ["uploads", "reports", "deliveryTickets"],
-      count: counts.reports,
+      count: canOpen("reports") ? counts.reports : null,
     },
     {
       id: "team",

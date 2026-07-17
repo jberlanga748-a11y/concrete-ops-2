@@ -176,6 +176,7 @@ export function EstimatorMobilePipelinePage({
   onStartTakeoff,
   onSelectCustomer,
   activeModule = "leads",
+  simpleFenceMode = false,
 }) {
   void permissions;
 
@@ -288,7 +289,7 @@ export function EstimatorMobilePipelinePage({
       className="co-estimator-mobile-pipeline"
     >
       <ApexMobileKpiGrid items={kpis} />
-      {isEstimateRoute && typeof onStartTakeoff === "function" ? (
+      {isEstimateRoute && !simpleFenceMode && typeof onStartTakeoff === "function" ? (
         <section className="co-apex-mobile-start-takeoff">
           <div>
             <Badge tone="green">Takeoff</Badge>
@@ -310,7 +311,7 @@ export function EstimatorMobilePipelinePage({
             <div className="co-apex-mobile-selected-head">
               <Badge tone={selectedItem.tone || "slate"}>{selectedItem.eyebrow || "Pipeline"}</Badge>
               <StatusBadge status={selectedItem.statusLabel || "Review"} />
-              {isEstimateRoute && selectedItem.kind === "estimate" && typeof onOpenTakeoff === "function" ? (
+              {isEstimateRoute && !simpleFenceMode && selectedItem.kind === "estimate" && typeof onOpenTakeoff === "function" ? (
                 <Button type="button" variant="secondary" onClick={() => onOpenTakeoff(selectedItem.recordId)}>Open Takeoff</Button>
               ) : null}
             </div>

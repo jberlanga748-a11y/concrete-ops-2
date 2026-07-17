@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isSimpleFenceMode, resolveDashboardShortcut } from "./navigation-utils.js";
+import { SIMPLE_FENCE_HIDDEN_MODULE_IDS, canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isSimpleFenceMode, resolveDashboardShortcut, simpleFenceModeAllowsFieldAction } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -276,25 +276,38 @@ test("simple fence mode triggers only for fencing workspaces on the Basic packag
   assert.equal(isSimpleFenceMode({}), false);
 });
 
-test("simple fence mode hides command center, calculator, and pour checklists from nav", () => {
+test("simple fence mode hides concrete and enterprise tooling from nav", () => {
   const owner = { role: "Owner" };
   const simpleSettings = { toolChecklistEnabled: true, primaryTrade: "fencing", packageId: "basic" };
   const simpleIds = getVisibleNavGroups(NAV_GROUPS, owner, simpleSettings).flatMap((group) => group.items.map((item) => item.id));
 
-  for (const hidden of ["calculator", "prePour", "postPour", "copilot"]) {
+  for (const hidden of ["calculator", "prePour", "postPour", "copilot", "reports", "support", "toolChecklist"]) {
     assert.equal(simpleIds.includes(hidden), false, `${hidden} should be hidden in simple mode`);
   }
-  for (const kept of ["dashboard", "jobs", "schedule", "reports", "leads", "customers", "employees", "settings", "support"]) {
+  for (const kept of ["dashboard", "jobs", "schedule", "leads", "communications", "customers", "employees", "settings"]) {
     assert.equal(simpleIds.includes(kept), true, `${kept} should stay visible in simple mode`);
   }
+
+  for (const hidden of ["fieldWorkspace", "rateBook", "materialPrep", "changeOrders", "toolbox"]) {
+    assert.equal(SIMPLE_FENCE_HIDDEN_MODULE_IDS.has(hidden), true, `${hidden} should be in the simple-mode hidden set`);
+  }
+
+  assert.equal(simpleFenceModeAllowsFieldAction("reports", true), false);
+  assert.equal(simpleFenceModeAllowsFieldAction("deliveryTickets", true), false, "concrete-only modules stay out of simple-mode field tiles");
+  assert.equal(simpleFenceModeAllowsFieldAction("time", true), true);
+  assert.equal(simpleFenceModeAllowsFieldAction("ppe", true), true);
+  assert.equal(simpleFenceModeAllowsFieldAction("reports", false), true, "full app keeps every field tile");
 
   const premiumFencingIds = getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true, primaryTrade: "fencing", packageId: "premium" })
     .flatMap((group) => group.items.map((item) => item.id));
   assert.equal(premiumFencingIds.includes("calculator"), true, "premium fencing keeps the full app");
   assert.equal(premiumFencingIds.includes("prePour"), true, "premium fencing keeps the full app");
+  assert.equal(premiumFencingIds.includes("reports"), true, "premium fencing keeps the full app");
 
   const concreteIds = getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true, primaryTrade: "concrete", packageId: "basic" })
     .flatMap((group) => group.items.map((item) => item.id));
   assert.equal(concreteIds.includes("calculator"), true, "non-fence companies keep the full app");
   assert.equal(concreteIds.includes("prePour"), true, "non-fence companies keep the full app");
+  assert.equal(concreteIds.includes("reports"), true, "non-fence companies keep the full app");
+  assert.equal(concreteIds.includes("support"), true, "non-fence companies keep the full app");
 });

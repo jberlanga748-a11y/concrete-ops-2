@@ -1,3 +1,5 @@
+import { SIMPLE_FENCE_HIDDEN_MODULE_IDS } from "./navigation-utils.js";
+
 export const OWNER_ADMIN_MOBILE_NAV_ORDER = [
   { id: "dashboard", label: "Today", icon: "grid" },
   { id: "fieldWorkspace", label: "Field", icon: "briefcase" },
@@ -29,9 +31,11 @@ export const ESTIMATOR_MOBILE_NAV_ORDER = [
 
 export const ESTIMATOR_MOBILE_NAV_ROUTES = new Set(["leads", "estimates", "customers", "communications"]);
 
-export function getOwnerAdminMobileNavItems(visibleNavItems = []) {
+export function getOwnerAdminMobileNavItems(visibleNavItems = [], { simpleFenceMode = false } = {}) {
+  const allowsItem = (item) => !simpleFenceMode || !SIMPLE_FENCE_HIDDEN_MODULE_IDS.has(item.id);
   const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
   const ordered = OWNER_ADMIN_MOBILE_NAV_ORDER
+    .filter(allowsItem)
     .map((item) => {
       const visible = visibleById.get(item.id);
       return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
@@ -39,6 +43,7 @@ export function getOwnerAdminMobileNavItems(visibleNavItems = []) {
     .filter(Boolean);
   const orderedIds = new Set(ordered.map((item) => item.id));
   const overflow = OWNER_ADMIN_MOBILE_MORE_ORDER
+    .filter(allowsItem)
     .map((item) => {
       if (orderedIds.has(item.id)) return null;
       const visible = visibleById.get(item.id);

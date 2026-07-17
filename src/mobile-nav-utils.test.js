@@ -43,6 +43,33 @@ test("owner admin mobile nav preserves permission-filtered order and labels", ()
   assert.equal(items.some((item) => item.id === "appHealth"), false);
 });
 
+test("owner admin mobile nav drops hidden simple-mode modules when the flag is set", () => {
+  const simpleVisibleItems = [
+    ...visibleNavItems,
+    { id: "reports", label: "Reports", icon: "original-reports" },
+    { id: "uploads", label: "Uploads", icon: "original-uploads" },
+  ];
+  const items = getOwnerAdminMobileNavItems(simpleVisibleItems, { simpleFenceMode: true });
+
+  assert.deepEqual(items.map((item) => item.id), [
+    "dashboard",
+    "communications",
+    "estimates",
+    "jobs",
+    "uploads",
+    "leads",
+    "customers",
+    "settings",
+  ]);
+  assert.equal(items.some((item) => item.id === "fieldWorkspace"), false);
+  assert.equal(items.some((item) => item.id === "reports"), false);
+  assert.equal(items.find((item) => item.id === "uploads")?.label, "Photos");
+
+  const fullItems = getOwnerAdminMobileNavItems(simpleVisibleItems, { simpleFenceMode: false });
+  assert.equal(fullItems.some((item) => item.id === "fieldWorkspace"), true);
+  assert.equal(fullItems.some((item) => item.id === "reports"), true);
+});
+
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {
   const items = getEstimatorMobileNavItems(visibleNavItems);
 
