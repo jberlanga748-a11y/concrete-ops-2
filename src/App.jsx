@@ -316,7 +316,7 @@ import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_CONNECTOR_PRESETS, O
 import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
-import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
+import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isSimpleFenceMode, resolveDashboardShortcut } from "./navigation-utils";
 import { ActivityPanel, AuditTrailPanel } from "./office-activity-route-components";
 import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistOwner, postPourChecklistStatusLabel, postPourChecklistUpdated, postPourItemStatusLabel, postPourItemTone, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistOwner, prePourChecklistStatusLabel, prePourChecklistUpdated, prePourItemStatusLabel, prePourItemTone, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -360,6 +360,7 @@ const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
 const CommandCenterRoutePage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "CommandCenterRoutePage");
 const TodayCommandPage = lazyRouteComponent(() => import("./today-command-page-components"), "TodayCommandPage");
+const SimpleFenceTodayPage = lazyRouteComponent(() => import("./simple-today-page-components"), "SimpleFenceTodayPage");
 const LeadDetailPanel = lazyRouteComponent(() => import("./lead-detail-panel-components"), "LeadDetailPanel");
 const EstimatorMobilePipelinePage = lazyRouteComponent(() => import("./estimator-mobile-pipeline-components"), "EstimatorMobilePipelinePage");
 const OwnerAdminMobileCommandPage = lazyRouteComponent(() => import("./owner-admin-mobile-command-components"), "OwnerAdminMobileCommandPage");
@@ -12482,6 +12483,7 @@ function MainContent(props) {
     OwnerAdminMobileCommandPage,
     DashboardPagePolished,
     CommandCenterPage,
+    SimpleFenceTodayPage,
   };
   if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
     return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} onOpenSettingsSection={props.onOpenSettingsSection} onOpenSupport={props.onOpenSupport} />;
@@ -12543,6 +12545,7 @@ function MainContent(props) {
     if (active === "estimates") {
       return (
         <EstimatesPage
+          simpleFenceMode={isSimpleFenceMode(props.companySettings)}
           customers={props.customers}
           leads={props.leads}
           estimates={props.estimates}
@@ -17456,6 +17459,10 @@ export default function App() {
                 supportDraftSeed={supportDraftSeed}
                 onOpenSupport={openSupportWorkflow}
                 onOpenSafetySupport={openSupportWorkflow}
+                onStartQuickEstimate={() => {
+                  setAssistantEstimateDraftSeed({ nonce: Date.now() });
+                  setActive("estimates");
+                }}
                 currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}

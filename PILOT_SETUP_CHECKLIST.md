@@ -22,6 +22,7 @@ Lead or customer -> estimate -> approved job -> crew assignment -> field photo -
 - [ ] One current lead or upcoming quote opportunity.
 - [ ] Basic estimate scope and rough line items for one estimate.
 - [ ] Confirmation that demo mode stays off for the contractor pilot app.
+- [ ] Primary trade set to the contractor's real trade in Settings -> Company profile. For the fencing pilot, set it to Fencing: on the Basic package that switches the workspace to the simplified fence front door (calm Today home, 4-step estimates, concrete-only tools hidden). Upgrading the package or changing the trade brings the full app back.
 
 ## Setup Checklist
 

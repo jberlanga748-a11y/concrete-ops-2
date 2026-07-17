@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils.js";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isSimpleFenceMode, resolveDashboardShortcut } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -264,4 +264,37 @@ test("field roles do not get dashboard shortcuts that lead into office workspace
 
   assert.equal(resolveDashboardShortcut("needsAction", foreman, { toolChecklistEnabled: true }), null);
   assert.equal(resolveDashboardShortcut("today", foreman, { toolChecklistEnabled: true }), null);
+});
+
+test("simple fence mode triggers only for fencing workspaces on the Basic package", () => {
+  assert.equal(isSimpleFenceMode({ primaryTrade: "fencing", packageId: "basic" }), true);
+  assert.equal(isSimpleFenceMode({ primaryTrade: "fencing", packageId: "" }), true);
+  assert.equal(isSimpleFenceMode({ primaryTrade: "fencing", packageId: "premium" }), false);
+  assert.equal(isSimpleFenceMode({ primaryTrade: "fencing", packageId: "elite" }), false);
+  assert.equal(isSimpleFenceMode({ primaryTrade: "general-contractor", packageId: "basic" }), false);
+  assert.equal(isSimpleFenceMode({ primaryTrade: "concrete", packageId: "basic" }), false);
+  assert.equal(isSimpleFenceMode({}), false);
+});
+
+test("simple fence mode hides command center, calculator, and pour checklists from nav", () => {
+  const owner = { role: "Owner" };
+  const simpleSettings = { toolChecklistEnabled: true, primaryTrade: "fencing", packageId: "basic" };
+  const simpleIds = getVisibleNavGroups(NAV_GROUPS, owner, simpleSettings).flatMap((group) => group.items.map((item) => item.id));
+
+  for (const hidden of ["calculator", "prePour", "postPour", "copilot"]) {
+    assert.equal(simpleIds.includes(hidden), false, `${hidden} should be hidden in simple mode`);
+  }
+  for (const kept of ["dashboard", "jobs", "schedule", "reports", "leads", "customers", "employees", "settings", "support"]) {
+    assert.equal(simpleIds.includes(kept), true, `${kept} should stay visible in simple mode`);
+  }
+
+  const premiumFencingIds = getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true, primaryTrade: "fencing", packageId: "premium" })
+    .flatMap((group) => group.items.map((item) => item.id));
+  assert.equal(premiumFencingIds.includes("calculator"), true, "premium fencing keeps the full app");
+  assert.equal(premiumFencingIds.includes("prePour"), true, "premium fencing keeps the full app");
+
+  const concreteIds = getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true, primaryTrade: "concrete", packageId: "basic" })
+    .flatMap((group) => group.items.map((item) => item.id));
+  assert.equal(concreteIds.includes("calculator"), true, "non-fence companies keep the full app");
+  assert.equal(concreteIds.includes("prePour"), true, "non-fence companies keep the full app");
 });

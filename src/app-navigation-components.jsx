@@ -29,7 +29,7 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
     {
       id: "office",
       label: "Office",
-      helper: "CRM",
+      helper: "Customers",
       icon: "inbox",
       target: firstVisible(["commandCenter", "communications", "leads", "customers"]),
       modules: ["commandCenter", "communications", "leads", "customers"],
@@ -46,8 +46,8 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
     },
     {
       id: "proof",
-      label: "Proof",
-      helper: "Closeout",
+      label: "Field Reports",
+      helper: "Proof",
       icon: "upload",
       target: firstVisible(["uploads", "reports", "deliveryTickets", "prePour", "postPour"]),
       modules: ["uploads", "reports", "deliveryTickets"],
@@ -64,7 +64,7 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
     },
     {
       id: "system",
-      label: "System",
+      label: "Settings",
       helper: "Setup",
       icon: "settings",
       target: firstVisible(["settings", "support", "appHealth", "calculator"]),
