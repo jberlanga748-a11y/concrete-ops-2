@@ -27,7 +27,8 @@ const COLORS = {
 
 const PAGE_MARGIN = 42;
 const CONTENT_WIDTH = 528;
-const FOOTER_RESERVED_HEIGHT = 34;
+const PAGE_W_FULL = 612;
+const FOOTER_RESERVED_HEIGHT = 54;
 const TABLE_COLUMNS = {
   description: 246,
   quantity: 48,
@@ -36,9 +37,93 @@ const TABLE_COLUMNS = {
   lineTotal: 92,
 };
 
-function safeHexColor(value, fallback) {
-  const normalized = String(value || "").trim();
-  return /^#[0-9A-F]{6}$/i.test(normalized) ? normalized : fallback;
+// Neutral ink ramp used across the redesigned layout.
+const INK = "#101828";
+const SOFT_INK = "#475467";
+const FAINT_INK = "#98a2b3";
+const HAIRLINE = "#e4e7ec";
+
+// ---------------------------------------------------------------------------
+// Brand color system. The whole document is themed from ONE brand hex the
+// contractor picks; every derived tone is chosen by luminance so any color
+// (navy, safety orange, pale yellow) stays readable.
+// ---------------------------------------------------------------------------
+function hexToRgbTriplet(hex) {
+  const h = String(hex || "").replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function rgbTripletToHex(rgb) {
+  return `#${rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function relativeLuminance(hex) {
+  const [r, g, b] = hexToRgbTriplet(hex).map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function mixHexColors(hexA, hexB, t) {
+  const a = hexToRgbTriplet(hexA);
+  const b = hexToRgbTriplet(hexB);
+  return rgbTripletToHex(a.map((value, index) => value + (b[index] - value) * t));
+}
+
+const LEGACY_ACCENT_HEX = {
+  blue: "#2563eb",
+  orange: "#f97316",
+  green: "#16a34a",
+  red: "#dc2626",
+  purple: "#7c3aed",
+  slate: "#475569",
+  teal: "#0d9488",
+};
+
+// Resolve the contractor's brand color. Accepts the upcoming free-hex brand
+// field, a hex in the legacy accent field, the print-packet accent, or a
+// legacy accent keyword; falls back to Apex safety orange.
+function resolveBrandColorHex(companyProfile = {}, explicitPacketAccent = "") {
+  const candidates = [
+    explicitPacketAccent,
+    companyProfile.brandColor,
+    companyProfile.brandColorHex,
+    companyProfile.accentColor,
+    companyProfile.printPacketAccentColor,
+  ];
+  for (const candidate of candidates) {
+    const raw = String(candidate || "").trim().toLowerCase();
+    if (!raw) continue;
+    if (/^#[0-9a-f]{6}$/.test(raw)) return raw;
+    if (LEGACY_ACCENT_HEX[raw]) return LEGACY_ACCENT_HEX[raw];
+  }
+  return "#f97316";
+}
+
+function brandPalette(brandHex) {
+  const lum = relativeLuminance(brandHex);
+  const lightBrand = lum > 0.45;
+  const onBrand = lightBrand ? INK : "#ffffff";
+  const onBrandSoft = lightBrand ? mixHexColors(brandHex, "#000000", 0.6) : mixHexColors(brandHex, "#ffffff", 0.72);
+  let brandText = brandHex;
+  let guard = 0;
+  while (relativeLuminance(brandText) > 0.3 && guard < 12) {
+    brandText = mixHexColors(brandText, "#000000", 0.22);
+    guard += 1;
+  }
+  return {
+    brand: brandHex,
+    onBrand,
+    onBrandSoft,
+    brandText,
+    brandTint: mixHexColors(brandHex, "#ffffff", 0.92),
+    bandEdge: mixHexColors(brandHex, "#000000", lightBrand ? 0.22 : 0.35),
+  };
+}
+
+function docPalette(doc) {
+  return doc._apexBrandPalette || brandPalette("#f97316");
 }
 
 function packetProfileHexColor(value = "") {
@@ -74,15 +159,6 @@ function applyCompanyProfilePacketTheme(packetSettings = {}, companyProfile = {}
   };
 }
 
-function pdfTheme(theme = {}) {
-  return {
-    headerColor: safeHexColor(theme.headerColor, COLORS.navyDark),
-    headerTextColor: safeHexColor(theme.headerTextColor, COLORS.white),
-    accentColor: safeHexColor(theme.accentColor, COLORS.orange),
-    accentDarkColor: safeHexColor(theme.accentDarkColor, COLORS.orangeDark),
-    accentSoftColor: safeHexColor(theme.accentSoftColor, COLORS.orangeSoft),
-  };
-}
 const PDF_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g);base64,([A-Za-z0-9+/=\s]+)$/i;
 const PDF_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -168,19 +244,26 @@ function collectPdfBuffer(doc) {
   });
 }
 
+// Spaced small-caps label — the redesign's section voice.
+function drawSpacedCaps(doc, text, x, y, { size = 8, color = FAINT_INK, tracking = 1.8, width, align = "left", font = "Helvetica-Bold" } = {}) {
+  doc.font(font).fontSize(size).fillColor(color).text(String(text ?? "").toUpperCase(), x, y, {
+    characterSpacing: tracking,
+    width,
+    align,
+    lineBreak: false,
+  });
+}
+
 function addSectionTitle(doc, title, y = doc.y) {
+  const palette = docPalette(doc);
+  drawSpacedCaps(doc, title, PAGE_MARGIN, y, { size: 8.2, color: palette.brandText, tracking: 2.2 });
   doc
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor(COLORS.navy)
-    .text(title.toUpperCase(), PAGE_MARGIN, y, { width: CONTENT_WIDTH });
-  doc
-    .moveTo(PAGE_MARGIN, doc.y + 5)
-    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, doc.y + 5)
-    .strokeColor(COLORS.border)
-    .lineWidth(1)
+    .moveTo(PAGE_MARGIN, y + 14)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, y + 14)
+    .strokeColor(HAIRLINE)
+    .lineWidth(0.8)
     .stroke();
-  doc.moveDown(0.85);
+  doc.y = y + 22;
 }
 
 function ensureSpace(doc, heightNeeded) {
@@ -231,15 +314,6 @@ function validThroughDate(value) {
   return date.toLocaleDateString("en-US");
 }
 
-function packetHeaderLabel(printModel = {}) {
-  if (printModel.packetSettings?.allowInternalSections) return "INTERNAL REVIEW PACKET";
-  const presetLabel = cleanText(printModel.packetSettings?.presetLabel || "");
-  if (/estimate sheet/i.test(presetLabel)) return "ESTIMATE SHEET";
-  if (/subcontractor/i.test(presetLabel)) return "SUBCONTRACTOR PROPOSAL";
-  if (/gc|prime/i.test(presetLabel)) return "GC PROPOSAL PACKET";
-  return "PROPOSAL PACKET";
-}
-
 function packetAudienceLabel(printModel = {}) {
   if (printModel.packetSettings?.allowInternalSections) return "Internal review packet";
   const presetLabel = cleanText(printModel.packetSettings?.presetLabel || "");
@@ -279,411 +353,162 @@ function drawLogoMark(doc, logoImage, { x, y, width, height, radius = 10, pad = 
   }
 }
 
-function drawHeader(doc, { companyName, companyProfile, headerLabel = "PROPOSAL PACKET", theme = {}, logoImage = null }) {
-  const headerTop = PAGE_MARGIN;
-  const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
-  const colors = pdfTheme(theme);
-
-  doc.roundedRect(PAGE_MARGIN, headerTop, CONTENT_WIDTH, 86, 14).fill(colors.headerColor);
-  doc
-    .rect(PAGE_MARGIN, headerTop + 82, CONTENT_WIDTH, 4)
-    .fill(colors.accentColor);
-
-  if (!drawLogoMark(doc, logoImage, { x: PAGE_MARGIN + 18, y: headerTop + 18, width: 48, height: 48, radius: 10 })) {
-    doc.roundedRect(PAGE_MARGIN + 18, headerTop + 18, 48, 48, 10).fill(colors.accentColor);
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(17)
-      .fillColor(colors.headerTextColor)
-      .text(initials, PAGE_MARGIN + 18, headerTop + 33, { width: 48, align: "center" });
-  }
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(18)
-    .fillColor(colors.headerTextColor)
-    .text(cleanText(companyName, "Apex HQ Workspace"), PAGE_MARGIN + 78, headerTop + 18, { width: 238 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8)
-    .fillColor(colors.accentSoftColor)
-    .text(cleanText(headerLabel, "PROPOSAL PACKET"), PAGE_MARGIN + 78, headerTop + 43, { width: 238 });
-
-  const profile = profileLines(companyProfile);
-  doc
-    .font("Helvetica")
-    .fontSize(8.5)
-    .fillColor("#dbeafe");
-  profile.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN + 318, headerTop + 18 + (index * 10.5), { width: 190, align: "right" });
-  });
-
-  const details = profileDetailLines(companyProfile);
-  if (details.length > 0) {
-    doc
-      .font("Helvetica")
-      .fontSize(7.5)
-      .fillColor(COLORS.slate)
-      .text(details.join("  |  "), PAGE_MARGIN, headerTop + 96, {
-        width: CONTENT_WIDTH,
-        align: "center",
-        lineGap: 2,
-      });
-    doc.y = Math.max(doc.y + 10, headerTop + 96);
-    return;
-  }
-
-  doc.y = headerTop + 106;
-}
-
-function drawProposalCoverPage(doc, {
+// ---------------------------------------------------------------------------
+// Brand band: the single hero header for the whole document. Logo plate,
+// serif company name, spaced ESTIMATE wordmark, and a prepared-for strip.
+// ---------------------------------------------------------------------------
+function drawBrandBand(doc, {
   companyName,
   companyProfile = {},
-  cover = {},
-  packetModeLabel = "Customer-ready proposal packet",
+  estimate = {},
+  customerName = "",
+  projectName = "",
+  audienceLabel = "",
+  wordmark = "ESTIMATE",
   logoImage = null,
+  includeCustomerStrip = true,
 }) {
+  const P = docPalette(doc);
   const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
-  const colors = pdfTheme(cover.theme);
-  const isEstimateSheet = cover.isEstimateSheet === true;
-  const isInternal = cover.isInternal === true;
-  const top = PAGE_MARGIN;
-  const heroHeight = 172;
+  const stripH = includeCustomerStrip ? 44 : 0;
+  const bandH = 114 + stripH;
 
-  doc.rect(0, 0, doc.page.width, doc.page.height).fill(COLORS.white);
-  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, heroHeight, 0).fill(colors.headerColor);
-  doc.rect(PAGE_MARGIN, top + heroHeight - 5, CONTENT_WIDTH, 5).fill(colors.accentColor);
-  doc.polygon(
-    [PAGE_MARGIN + CONTENT_WIDTH - 88, top],
-    [PAGE_MARGIN + CONTENT_WIDTH - 22, top],
-    [PAGE_MARGIN + CONTENT_WIDTH - 70, top + heroHeight],
-    [PAGE_MARGIN + CONTENT_WIDTH - 136, top + heroHeight],
-  ).fill("#cbd5e1");
+  doc.rect(0, 0, PAGE_W_FULL, bandH).fill(P.brand);
+  doc.rect(0, bandH, PAGE_W_FULL, 4).fill(P.bandEdge);
 
-  // Uploaded logos (usually wide) get a rounded-rect plate instead of the
-  // initials circle so they are letterboxed, never cropped or distorted.
-  if (!drawLogoMark(doc, logoImage, { x: PAGE_MARGIN + 24, y: top + 46, width: 100, height: 72, radius: 12, pad: 6 })) {
-    doc.circle(PAGE_MARGIN + 74, top + 82, 44).fill(colors.accentColor).strokeColor(COLORS.white).lineWidth(2).stroke();
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(colors.headerTextColor).text(initials, PAGE_MARGIN + 30, top + 72, { width: 88, align: "center" });
+  // Logo plate (uploaded logo letterboxed on white) or initials mark.
+  if (!drawLogoMark(doc, logoImage, { x: PAGE_MARGIN, y: 26, width: 104, height: 62, radius: 12, pad: 6 })) {
+    doc.roundedRect(PAGE_MARGIN, 26, 62, 62, 12).fill("#ffffff");
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(P.brandText).text(initials, PAGE_MARGIN, 46, { width: 62, align: "center", lineBreak: false });
   }
 
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(colors.accentSoftColor).text(cleanText(cover.coverKicker, "PROPOSAL").toUpperCase(), PAGE_MARGIN + 160, top + 38, { width: 250 });
-  doc.font("Helvetica-Bold").fontSize(28).fillColor(colors.headerTextColor).text(cleanText(cover.packetTitle, "Professional Proposal"), PAGE_MARGIN + 160, top + 56, {
-    width: 270,
-    lineGap: 1,
+  const nameX = PAGE_MARGIN + 120;
+  doc.font("Times-Bold").fontSize(22).fillColor(P.onBrand).text(cleanText(companyName, "Apex HQ Workspace"), nameX, 32, {
+    width: 268,
+    height: 26,
+    ellipsis: true,
+    lineBreak: false,
   });
-  doc.moveTo(PAGE_MARGIN + 160, top + 122).lineTo(PAGE_MARGIN + 356, top + 122).strokeColor(colors.accentColor).lineWidth(1.4).stroke();
-  doc.font("Helvetica-Bold").fontSize(7.4).fillColor(colors.accentSoftColor).text(cleanText(cover.tagline, "Solid work. Clear scope. Every detail counts.").toUpperCase(), PAGE_MARGIN + 160, top + 134, { width: 270 });
-  doc.font("Helvetica").fontSize(8.4).fillColor("#dbeafe").text(cleanText(cover.proposalTitle, ""), PAGE_MARGIN + 160, top + 152, {
-    width: 270,
-    lineGap: 1,
-  });
+  const contactLine = profileLines(companyProfile).slice(0, 2).join("   ·   ");
+  if (contactLine) {
+    doc.font("Helvetica").fontSize(8.2).fillColor(P.onBrandSoft).text(contactLine, nameX, 61, { width: 268, height: 10, ellipsis: true, lineBreak: false });
+  }
+  let detailLine = profileDetailLines(companyProfile).join("   ·   ");
+  doc.font("Helvetica").fontSize(8.2);
+  if (detailLine && doc.widthOfString(detailLine) > 268) {
+    // Prefer a clean license line over an ellipsized service-area mash-up.
+    const licenseOnly = cleanText(companyProfile.licenseText);
+    if (licenseOnly && doc.widthOfString(licenseOnly) <= 268) detailLine = licenseOnly;
+  }
+  if (detailLine) {
+    doc.font("Helvetica").fontSize(8.2).fillColor(P.onBrandSoft).text(detailLine, nameX, 74, { width: 268, height: 10, ellipsis: true, lineBreak: false });
+  }
 
-  const bodyTop = top + heroHeight + 20;
-  const contactX = PAGE_MARGIN + 28;
-  const contactRows = [
-    ["Company", companyName],
-    ["Phone", companyProfile.businessPhone],
-    ["Email", companyProfile.businessEmail],
-    ["Service Area", companyProfile.serviceArea],
-    ["License", companyProfile.licenseText],
-  ].filter(([, value]) => cleanText(value));
-  contactRows.forEach(([label, value], index) => {
-    const y = bodyTop + (index * 38);
-    doc.roundedRect(contactX, y, 174, 30, 8).fill(COLORS.white).strokeColor(COLORS.border).lineWidth(0.7).stroke();
-    doc.font("Helvetica-Bold").fontSize(6.2).fillColor(COLORS.slate).text(label.toUpperCase(), contactX + 12, y + 6, { width: 150 });
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.slateDark).text(cleanText(value), contactX + 12, y + 16, { width: 150, lineGap: 1 });
-  });
+  // Spaced wordmark + estimate identity, right side.
+  drawSpacedCaps(doc, wordmark, PAGE_W_FULL - PAGE_MARGIN - 220, 34, { size: 15, color: P.onBrand, tracking: 7, width: 220, align: "right" });
+  const estimateId = cleanText(estimate.id || "");
+  if (estimateId) {
+    doc.font("Helvetica-Bold").fontSize(9.4).fillColor(P.onBrandSoft).text(estimateId, PAGE_W_FULL - PAGE_MARGIN - 220, 60, { width: 220, align: "right", lineBreak: false });
+  }
+  doc.font("Helvetica").fontSize(8.2).fillColor(P.onBrandSoft).text(formatPdfDate(estimate.createdAt, ""), PAGE_W_FULL - PAGE_MARGIN - 220, estimateId ? 74 : 60, { width: 220, align: "right", lineBreak: false });
+  if (audienceLabel) {
+    doc.font("Helvetica").fontSize(7).fillColor(P.onBrandSoft).text(audienceLabel, PAGE_W_FULL - PAGE_MARGIN - 220, estimateId ? 87 : 73, { width: 220, align: "right", lineBreak: false });
+  }
 
-  const statementX = PAGE_MARGIN + 232;
-  doc.moveTo(statementX - 20, bodyTop).lineTo(statementX - 20, bodyTop + 170).strokeColor(COLORS.border).lineWidth(1).stroke();
-  doc.font("Times-BoldItalic").fontSize(22).fillColor(colors.headerColor).text(cleanText(cover.statementTitle, "Ready for approval."), statementX, bodyTop + 2, {
-    width: 238,
-    lineGap: 1,
-  });
-  doc.font("Helvetica").fontSize(9.2).fillColor(COLORS.slateDark).text(
-    cleanText(cover.statementBody, "Your project scope, pricing, options, and terms, organized so this proposal is easy to review and approve."),
-    statementX,
-    bodyTop + 56,
-    { width: 250, lineGap: 3 },
-  );
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(colors.accentDarkColor).text(cleanText(cover.reviewNote, "Review scope, exclusions, and terms before approval."), statementX, bodyTop + 126, {
-    width: 250,
-  });
-  doc.font("Helvetica-Bold").fontSize(7).fillColor(COLORS.slate).text(packetModeLabel.toUpperCase(), statementX, bodyTop + 148, { width: 250 });
-
-  const cardTop = bodyTop + 204;
-  const cardGap = 16;
-  const cardWidth = (CONTENT_WIDTH - 56 - cardGap) / 2;
-  const cards = [
-    {
-      title: "Prepared For",
-      rows: [
-        ["Customer", cover.customerName],
-        ["Project", cover.projectName],
-        ["Status", cover.status],
-        [isEstimateSheet ? "Estimate Date" : isInternal ? "Review Date" : "Proposal Date", cover.createdAt ? formatPdfDate(cover.createdAt) : ""],
-      ],
-    },
-    {
-      title: isInternal ? "Review Summary" : "Project Summary",
-      rows: [
-        ["Packet", cover.packetTitle],
-        ["Base Total", cover.baseTotalLabel],
-        [isInternal ? "Review Focus" : "Selected Option", cover.selectedOptionTitle || (isInternal ? "Pricing and backup review" : "Review pricing options")],
-        [isInternal ? "Review Amount" : "Selected Amount", cover.selectedOptionAmountLabel],
-        ["Valid Through", cover.createdAt ? validThroughDate(cover.createdAt) : ""],
-      ],
-    },
-  ];
-  cards.forEach((card, cardIndex) => {
-    const x = PAGE_MARGIN + 28 + (cardIndex * (cardWidth + cardGap));
-    doc.roundedRect(x, cardTop, cardWidth, 126, 8).fill(COLORS.white).strokeColor(COLORS.border).lineWidth(0.8).stroke();
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.slateDark).text(card.title.toUpperCase(), x + 14, cardTop + 14, { width: cardWidth - 28 });
-    doc.moveTo(x + 14, cardTop + 31).lineTo(x + 68, cardTop + 31).strokeColor(colors.accentColor).lineWidth(1.2).stroke();
-    card.rows.filter(([, value]) => cleanText(value)).forEach(([label, value], index) => {
-      const y = cardTop + 42 + (index * 16);
-      doc.font("Helvetica-Bold").fontSize(6.4).fillColor(COLORS.slate).text(label.toUpperCase(), x + 14, y, { width: 72 });
-      doc.font("Helvetica-Bold").fontSize(7.2).fillColor(COLORS.slateDark).text(cleanText(value), x + 92, y - 1, { width: cardWidth - 108, align: "right", lineGap: 0 });
+  if (includeCustomerStrip) {
+    const stripY = 114;
+    doc.moveTo(PAGE_MARGIN, stripY).lineTo(PAGE_W_FULL - PAGE_MARGIN, stripY)
+      .strokeColor(P.onBrandSoft).lineWidth(0.5).strokeOpacity(0.5).stroke().strokeOpacity(1);
+    drawSpacedCaps(doc, "Prepared for", PAGE_MARGIN, stripY + 10, { size: 7, color: P.onBrandSoft, tracking: 2.2 });
+    const customerLine = [cleanText(customerName), cleanText(projectName)].filter(Boolean).join("  ·  ") || "Customer pending";
+    // Two lines available so long names/addresses wrap instead of truncating.
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(P.onBrand).text(customerLine, PAGE_MARGIN + 92, stripY + 8.5, {
+      width: PAGE_W_FULL - (PAGE_MARGIN + 92) - PAGE_MARGIN - 182,
+      height: 26,
+      ellipsis: true,
+      lineGap: 1.5,
     });
-  });
+    drawSpacedCaps(doc, `Valid through ${validThroughDate(estimate.createdAt)}`, PAGE_W_FULL - PAGE_MARGIN - 172, stripY + 10, {
+      size: 7, color: P.onBrandSoft, tracking: 1.5, width: 172, align: "right",
+    });
+  }
 
-  const trustTop = cardTop + 148;
-  doc.roundedRect(PAGE_MARGIN, trustTop, CONTENT_WIDTH, 92, 0).fill(colors.headerColor);
-  doc.font("Helvetica-Bold").fontSize(8).fillColor("#fed7aa").text(isEstimateSheet ? "WHY THIS ESTIMATE IS READY" : isInternal ? "WHY THIS REVIEW IS READY" : "WHY THIS PACKET IS READY", PAGE_MARGIN, trustTop + 14, {
-    width: CONTENT_WIDTH,
-    align: "center",
-  });
-  const modelTrustCards = Array.isArray(cover.trustCards) && cover.trustCards.length > 0
-    ? cover.trustCards.map((card) => [
-      cleanText(card?.title || (Array.isArray(card) ? card[0] : "")).toUpperCase(),
-      cleanText(card?.copy || (Array.isArray(card) ? card[1] : "")),
-    ]).filter(([title, copy]) => title || copy)
-    : [];
-  const trustCards = modelTrustCards.length > 0 ? modelTrustCards : isEstimateSheet ? [
-    ["SCOPE CLARITY", "Work and exclusions are clear."],
-    ["PRICING READY", "Customer total is organized."],
-    ["NEXT STEPS", "Terms and schedule path are visible."],
-    ["PROTECTED NOTES", "Internal notes stay protected."],
-  ] : [
-    ["CLEAR SCOPE", "The work and exclusions are spelled out."],
-    ["HONEST PRICING", "Line items and totals are easy to review."],
-    ["QUALITY WORK", "Careful workmanship, start to finish."],
-    ["EASY NEXT STEPS", "Approval and scheduling are simple."],
-  ];
-  const trustCardWidth = (CONTENT_WIDTH - 60) / 4;
-  trustCards.forEach(([title, copy], index) => {
-    const x = PAGE_MARGIN + 18 + (index * (trustCardWidth + 8));
-    const y = trustTop + 36;
-    doc.roundedRect(x, y, trustCardWidth, 42, 6).fill(COLORS.navy).strokeColor("#fed7aa").lineWidth(0.45).stroke();
-    doc.font("Helvetica-Bold").fontSize(6).fillColor("#fed7aa").text(title, x + 6, y + 9, { width: trustCardWidth - 12, align: "center" });
-    doc.font("Helvetica").fontSize(6.4).fillColor("#dbeafe").text(copy, x + 7, y + 24, { width: trustCardWidth - 14, align: "center", lineGap: 1 });
-  });
-
-  doc.y = trustTop + 96;
+  doc.y = bandH + 26;
 }
 
-function drawProposalIntro(doc, {
-  estimate,
-  customerName,
-  projectName,
-  packetLabel,
-  totals = {},
-  pricingOptions = {},
-  isInternal = false,
-}) {
-  const top = doc.y;
-  const boxHeight = 182;
-  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, boxHeight, 16).fill(COLORS.navyDark);
-  doc.rect(PAGE_MARGIN, top, CONTENT_WIDTH, 7).fill(COLORS.orange);
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8.5)
-    .fillColor("#fed7aa")
-    .text("Estimate / Proposal", PAGE_MARGIN + 22, top + 24, { width: 280 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(25)
-    .fillColor(COLORS.white)
-    .text(cleanText(packetLabel, "Professional Proposal"), PAGE_MARGIN + 22, top + 42, { width: 296, lineGap: 1 });
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#dbeafe")
-    .text(cleanText(estimate.title, "Customer Estimate"), PAGE_MARGIN + 22, top + 98, { width: 286, lineGap: 2 });
-
-  const badgeY = top + 132;
-  doc.roundedRect(PAGE_MARGIN + 22, badgeY, 202, 22, 11)
-    .fill(isInternal ? COLORS.amberSoft : COLORS.greenSoft)
-    .strokeColor(isInternal ? "#f59e0b" : "#bbf7d0")
-    .lineWidth(0.6)
-    .stroke();
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(7.6)
-    .fillColor(isInternal ? COLORS.orangeDark : COLORS.green)
-    .text(isInternal ? "Internal review packet - office detail enabled" : "Customer-ready packet - office detail excluded", PAGE_MARGIN + 34, badgeY + 7, { width: 178 });
-  doc.font("Helvetica-Bold").fontSize(7).fillColor("#cbd5e1").text("PROFESSIONAL PACKET", PAGE_MARGIN + 234, badgeY + 7, { width: 118 });
-
-  const dateText = formatPdfDate(estimate.createdAt);
-  const validText = validThroughDate(estimate.createdAt);
-  const statusText = cleanText(estimate.status, "draft");
-  const selectedOption = pricingOptions?.selectedOption;
-  const detailCards = [
-    ["BASE TOTAL", totals.grandTotalLabel],
-    [isInternal ? "REVIEW FOCUS" : "SELECTED OPTION", selectedOption?.title || (isInternal ? "Pricing and backup review" : "Review options")],
-    ["PREPARED FOR", customerName],
-    ["PROJECT", projectName],
-    ["STATUS", statusText],
-    [isInternal ? "REVIEW DATE" : "PROPOSAL DATE", dateText],
-    ["VALID THROUGH", validText],
-  ];
-  const detailTop = top + 20;
-  const detailX = PAGE_MARGIN + 330;
-  const detailWidth = 176;
-
-  detailCards.forEach(([label, value], index) => {
-    const y = detailTop + (index * 21.5);
-    const isPriceCard = index === 0;
-    doc.roundedRect(detailX, y, detailWidth, 19, 6)
-      .fill(isPriceCard ? COLORS.orange : COLORS.white)
-      .strokeColor(isPriceCard ? COLORS.orange : "#cbd5e1")
-      .lineWidth(0.45)
-      .stroke();
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(6.2)
-      .fillColor(isPriceCard ? COLORS.orangeSoft : COLORS.slate)
-      .text(label, detailX + 8, y + 6, { width: 66 });
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(isPriceCard ? 8.5 : 7.2)
-      .fillColor(isPriceCard ? COLORS.white : COLORS.slateDark)
-      .text(cleanText(value, "Pending"), detailX + 76, y + 5, { width: 90, align: "right" });
-  });
-
-  doc
-    .font("Helvetica")
-    .fontSize(7.5)
-    .fillColor("#dbeafe")
-    .text(`${isInternal ? "Review date" : "Proposal date"}: ${dateText}`, PAGE_MARGIN + 22, top + 160, { width: 220 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(7.2)
-    .fillColor("#fed7aa")
-    .text(isInternal ? "Review scope, backup, risks, and release readiness" : "Review scope, exclusions, and terms before approval", PAGE_MARGIN + 234, top + 160, { width: 158 });
-
-  doc.y = top + boxHeight + 16;
-}
-
-function drawPacketSnapshot(doc, { printModel, customerName, projectName }) {
-  const isInternal = printModel.packetSettings.allowInternalSections;
-  ensureSpace(doc, 112);
-  addSectionTitle(doc, isInternal ? "Review Snapshot" : "Proposal Snapshot");
-  const top = doc.y;
-  const gap = 10;
-  const cardWidth = (CONTENT_WIDTH - gap) / 2;
-  const cards = [
-    ["Base estimate", printModel.totals.grandTotalLabel, "Line items plus tax and fees."],
-    [
-      isInternal ? "Review focus" : "Selected option",
-      printModel.pricingOptions.selectedOptionTitle || (isInternal ? "Pricing and backup review" : "Not selected"),
-      printModel.pricingOptions.selectedOptionAmountLabel || (isInternal ? "Review pricing, scope backup, and release notes." : "Review proposal options."),
-    ],
-    ["Prepared for", customerName, projectName],
-    [
-      isInternal ? "Packet privacy" : "Questions?",
-      isInternal ? "Internal review" : "We're happy to help",
-      isInternal ? "Office-only sections enabled." : "Reply or call any time. We'll walk through every detail.",
-    ],
-  ];
-
-  cards.forEach(([label, value, helper], index) => {
-    const x = PAGE_MARGIN + ((index % 2) * (cardWidth + gap));
-    const y = top + (Math.floor(index / 2) * 54);
-    const accent = index === 0 || index === 1;
-    doc.roundedRect(x, y, cardWidth, 44, 8)
-      .fill(accent ? COLORS.orangeSoft : COLORS.white)
-      .strokeColor(accent ? "#fed7aa" : COLORS.border)
-      .lineWidth(0.55)
-      .stroke();
-    doc.font("Helvetica-Bold").fontSize(6.8).fillColor(COLORS.orangeDark).text(label.toUpperCase(), x + 10, y + 8, { width: cardWidth - 20 });
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.slateDark).text(cleanText(value, "Pending"), x + 10, y + 19, { width: cardWidth - 20 });
-    doc.font("Helvetica").fontSize(7).fillColor(COLORS.slate).text(cleanText(helper), x + 10, y + 32, { width: cardWidth - 20 });
-  });
-
-  doc.y = top + 114;
+// Serif project title with a short brand tick under it.
+function drawProjectTitle(doc, title) {
+  const text = cleanText(title, "");
+  if (!text) return;
+  const P = docPalette(doc);
+  const y = doc.y;
+  doc.font("Times-Bold").fontSize(20).fillColor(INK).text(text, PAGE_MARGIN, y, { width: CONTENT_WIDTH, lineGap: 1 });
+  doc.rect(PAGE_MARGIN + 1, doc.y + 6, 54, 2.6).fill(P.brand);
+  doc.y = doc.y + 18;
 }
 
 function drawTextSection(doc, title, text) {
   if (!cleanMultilineText(text)) return;
-  ensureSpace(doc, 64);
+  ensureSpace(doc, 54);
   addSectionTitle(doc, title);
-  drawWrappedText(doc, text, { lineGap: 4 });
-  doc.moveDown(1.1);
+  drawWrappedText(doc, text, { lineGap: 3.4 });
+  doc.moveDown(0.9);
 }
 
 function drawLineItemsTable(doc, lineItems = []) {
-  addSectionTitle(doc, "Line Items");
+  const P = docPalette(doc);
   const startX = PAGE_MARGIN;
-  const headerHeight = 24;
   const rowPadding = 8;
   const rowTextTop = 8;
   const items = Array.isArray(lineItems) ? lineItems : [];
 
   function drawHeaderRow() {
     const y = doc.y;
-    doc.rect(startX, y, CONTENT_WIDTH, headerHeight).fill(COLORS.navy);
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.white);
-    let x = startX + rowPadding;
-    doc.text("Description", x, y + 8, { width: TABLE_COLUMNS.description });
+    doc.rect(startX, y, CONTENT_WIDTH, 2).fill(P.brand);
+    let x = startX;
+    drawSpacedCaps(doc, "Description", x, y + 10, { size: 7.4 });
     x += TABLE_COLUMNS.description;
-    doc.text("Qty", x, y + 8, { width: TABLE_COLUMNS.quantity, align: "right" });
+    drawSpacedCaps(doc, "Qty", x, y + 10, { size: 7.4, width: TABLE_COLUMNS.quantity, align: "right" });
     x += TABLE_COLUMNS.quantity;
-    doc.text("Unit", x, y + 8, { width: TABLE_COLUMNS.unit, align: "center" });
+    drawSpacedCaps(doc, "Unit", x, y + 10, { size: 7.4, width: TABLE_COLUMNS.unit, align: "center" });
     x += TABLE_COLUMNS.unit;
-    doc.text("Unit Price", x, y + 8, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    drawSpacedCaps(doc, "Unit price", x, y + 10, { size: 7.4, width: TABLE_COLUMNS.unitPrice, align: "right" });
     x += TABLE_COLUMNS.unitPrice;
-    doc.text("Line Total", x, y + 8, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
-    doc.y = y + headerHeight;
+    drawSpacedCaps(doc, "Amount", x, y + 10, { size: 7.4, width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.y = y + 27;
   }
 
-  ensureSpace(doc, headerHeight + 36);
+  ensureSpace(doc, 64);
   drawHeaderRow();
 
   if (items.length === 0) {
     const y = doc.y;
-    doc.rect(startX, y, CONTENT_WIDTH, 34).strokeColor(COLORS.border).stroke();
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slate).text("No line items recorded.", startX + rowPadding, y + 11, { width: CONTENT_WIDTH - 16 });
-    doc.y = y + 42;
+    doc.font("Helvetica").fontSize(9).fillColor(SOFT_INK).text("No line items recorded.", startX, y + 8, { width: CONTENT_WIDTH - 16 });
+    doc.y = y + 34;
     return;
   }
 
   items.forEach((item, index) => {
     const description = cleanText(item?.description || `Line item ${index + 1}`);
     const descriptionHeight = doc.heightOfString(description, { width: TABLE_COLUMNS.description - 8 });
-    const rowHeight = Math.max(32, descriptionHeight + 15);
+    const rowHeight = Math.max(26, descriptionHeight + 14);
     const yBeforeSpaceCheck = doc.y;
     ensureSpace(doc, rowHeight);
     if (doc.y < yBeforeSpaceCheck) drawHeaderRow();
 
     const y = doc.y;
-    doc.rect(startX, y, CONTENT_WIDTH, rowHeight).fill(index % 2 === 0 ? COLORS.white : COLORS.slateSoft);
-    doc.rect(startX, y, CONTENT_WIDTH, rowHeight).strokeColor(COLORS.border).lineWidth(0.6).stroke();
-
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slateDark);
-    let x = startX + rowPadding;
-    doc.text(description, x, y + rowTextTop, { width: TABLE_COLUMNS.description - 8, lineGap: 2 });
+    let x = startX;
+    doc.font("Helvetica-Bold").fontSize(9.6).fillColor(INK).text(description, x, y + rowTextTop, { width: TABLE_COLUMNS.description - 8, lineGap: 2 });
     x += TABLE_COLUMNS.description;
-    doc.text(String(item?.quantity ?? 0), x, y + rowTextTop, { width: TABLE_COLUMNS.quantity, align: "right" });
+    doc.font("Helvetica").fontSize(9.6).fillColor(SOFT_INK).text(String(item?.quantity ?? 0), x, y + rowTextTop, { width: TABLE_COLUMNS.quantity, align: "right", lineBreak: false });
     x += TABLE_COLUMNS.quantity;
-    doc.text(cleanText(item?.unit), x, y + rowTextTop, { width: TABLE_COLUMNS.unit, align: "center" });
+    doc.font("Helvetica").fontSize(9.6).fillColor(SOFT_INK).text(cleanText(item?.unit), x, y + rowTextTop, { width: TABLE_COLUMNS.unit, align: "center", lineBreak: false });
     x += TABLE_COLUMNS.unit;
-    doc.text(item?.unitPriceLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    doc.font("Helvetica").fontSize(9.6).fillColor(SOFT_INK).text(item?.unitPriceLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.unitPrice, align: "right", lineBreak: false });
     x += TABLE_COLUMNS.unitPrice;
-    doc.font("Helvetica-Bold").text(item?.lineTotalLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(9.6).fillColor(INK).text(item?.lineTotalLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right", lineBreak: false });
     doc.y = y + rowHeight;
+    doc.moveTo(startX, doc.y).lineTo(startX + CONTENT_WIDTH, doc.y).strokeColor(HAIRLINE).lineWidth(0.7).stroke();
   });
 
   doc.moveDown(0.8);
@@ -752,7 +577,7 @@ function drawPricingOptionsSection(doc, options = []) {
       .strokeColor(selected ? "#86efac" : COLORS.border)
       .lineWidth(selected ? 1 : 0.65)
       .stroke();
-    doc.rect(PAGE_MARGIN, y, 6, rowHeight).fill(selected ? COLORS.green : COLORS.orange);
+    doc.rect(PAGE_MARGIN, y, 6, rowHeight).fill(selected ? COLORS.green : docPalette(doc).brand);
 
     doc
       .font("Helvetica-Bold")
@@ -886,96 +711,104 @@ async function drawRecordSection(doc, title, records = []) {
 }
 
 function drawTotals(doc, totals, options = {}) {
-  ensureSpace(doc, options.hasSelectedOptionsTotal ? 170 : 126);
-  addSectionTitle(doc, "Base Estimate Total");
-  const boxWidth = 260;
-  const x = PAGE_MARGIN + CONTENT_WIDTH - boxWidth;
-  const y = doc.y;
+  const P = docPalette(doc);
+  ensureSpace(doc, options.hasSelectedOptionsTotal ? 150 : 112);
+  const y = doc.y + 6;
 
+  // Small breakdown stack on the left.
   const rows = [
     ["Subtotal", totals.subtotalLabel],
     ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, totals.taxTotalLabel]] : []),
     ...(totals.feesTotal != null ? [["Fees", totals.feesTotalLabel]] : []),
+    ...(options.hasSelectedOptionsTotal
+      ? [["Base estimate total", totals.grandTotalLabel], ["Selected options total", options.selectedOptionsTotalLabel]]
+      : []),
   ];
-
   rows.forEach(([label, value], index) => {
-    const rowY = y + (index * 21);
-    doc
-      .font("Helvetica")
-      .fontSize(9.5)
-      .fillColor(COLORS.slateDark)
-      .text(label, x + 12, rowY + 5, { width: 100 });
-    doc.text(value, x + 126, rowY + 5, { width: 120, align: "right" });
+    const rowY = y + 8 + (index * 16);
+    doc.font("Helvetica").fontSize(9.2).fillColor(SOFT_INK).text(label, PAGE_MARGIN, rowY, { width: 150, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(9.2).fillColor(INK).text(value, PAGE_MARGIN + 156, rowY, { width: 92, align: "right", lineBreak: false });
   });
 
-  const totalY = y + (rows.length * 21) + 7;
-  doc.roundedRect(x, totalY, boxWidth, 38, 9).fill(COLORS.navyDark);
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .fillColor("#fed7aa")
-    .text("BASE ESTIMATE TOTAL", x + 14, totalY + 12, { width: 118 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(16)
-    .fillColor(COLORS.white)
-    .text(totals.grandTotalLabel, x + 126, totalY + 10, { width: 120, align: "right" });
-
-  let nextY = totalY + 52;
-  if (options.hasSelectedOptionsTotal) {
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .fillColor(COLORS.slateDark)
-      .text("Selected options total", x + 12, nextY + 5, { width: 118 });
-    doc.text(options.selectedOptionsTotalLabel, x + 126, nextY + 5, { width: 120, align: "right" });
-    nextY += 27;
-    doc.roundedRect(x, nextY, boxWidth, 34, 9).fill(COLORS.orange);
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(9.5)
-      .fillColor(COLORS.orangeSoft)
-      .text("TOTAL WITH SELECTED OPTIONS", x + 14, nextY + 11, { width: 140 });
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(14)
-      .fillColor(COLORS.white)
-      .text(options.totalWithSelectedOptionsLabel, x + 154, nextY + 9, { width: 92, align: "right" });
-    nextY += 46;
+  // Hero total chip on the right; serif number, impossible to miss.
+  const chipW = 250;
+  const chipH = 80;
+  const chipX = PAGE_MARGIN + CONTENT_WIDTH - chipW;
+  doc.roundedRect(chipX, y, chipW, chipH, 14).fill(P.brand);
+  drawSpacedCaps(doc, options.hasSelectedOptionsTotal ? "Total with selected options" : "Project total", chipX + 22, y + 14, {
+    size: 7.6, color: P.onBrandSoft, tracking: 2.2, width: chipW - 44,
+  });
+  const heroLabel = options.hasSelectedOptionsTotal ? options.totalWithSelectedOptionsLabel : totals.grandTotalLabel;
+  const heroText = cleanText(heroLabel, "$0.00");
+  let heroSize = 31;
+  doc.font("Times-Bold").fontSize(heroSize);
+  while (heroSize > 16 && doc.widthOfString(heroText) > chipW - 44) {
+    heroSize -= 1.5;
+    doc.fontSize(heroSize);
   }
+  doc.fillColor(P.onBrand).text(heroText, chipX + 22, y + 30, { width: chipW - 44, lineBreak: false });
 
-  doc.y = nextY;
+  doc.y = y + Math.max(chipH, 8 + rows.length * 16) + 12;
 }
 
 function drawAcceptanceBlock(doc) {
   ensureSpace(doc, 92);
   addSectionTitle(doc, "Acceptance");
   const y = doc.y + 6;
-  const columnWidth = 154;
+  const columnWidth = 150;
   [["Accepted by", PAGE_MARGIN], ["Signature", PAGE_MARGIN + 187], ["Date", PAGE_MARGIN + 374]].forEach(([label, x]) => {
-    doc.moveTo(x, y + 32).lineTo(x + columnWidth, y + 32).strokeColor(COLORS.border).lineWidth(1).stroke();
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text(label.toUpperCase(), x, y + 40, { width: columnWidth });
+    doc.moveTo(x, y + 30).lineTo(x + columnWidth, y + 30).strokeColor("#cbd5e1").lineWidth(1).stroke();
+    drawSpacedCaps(doc, label, x, y + 36, { size: 7, tracking: 1.5 });
   });
-  doc.y = y + 66;
+  doc.y = y + 62;
 }
 
-function drawFooter(doc, { companyName, printPacketFooter, printPacketDisclaimer, theme = {}, defaultFooterLabel = "" }) {
-  const colors = pdfTheme(theme);
-  const footerY = doc.page.height - 56;
-  doc.moveTo(PAGE_MARGIN, footerY - 10).lineTo(PAGE_MARGIN + CONTENT_WIDTH, footerY - 10).strokeColor(COLORS.border).lineWidth(0.8).stroke();
-  doc.moveTo(PAGE_MARGIN, footerY - 7).lineTo(PAGE_MARGIN + 64, footerY - 7).strokeColor(colors.accentColor).lineWidth(1.4).stroke();
-  doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.slate);
-  const footer = cleanText(printPacketFooter || defaultFooterLabel || `${companyName} proposal packet.`);
-  const disclaimer = cleanText(printPacketDisclaimer);
+function drawFooter(doc, { companyName, printPacketFooter, printPacketDisclaimer, isInternalPacket = false }) {
+  const P = docPalette(doc);
   const savedBottomMargin = doc.page.margins.bottom;
   doc.page.margins.bottom = 0;
-  doc.text([footer, disclaimer].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
-    width: CONTENT_WIDTH,
-    align: "center",
-    height: doc.page.height - footerY - 8,
-    ellipsis: true,
-  });
+
+  if (isInternalPacket) {
+    const footerY = doc.page.height - 40;
+    doc.moveTo(PAGE_MARGIN, footerY - 8).lineTo(PAGE_MARGIN + CONTENT_WIDTH, footerY - 8).strokeColor(HAIRLINE).lineWidth(0.8).stroke();
+    const footer = cleanText(printPacketFooter || `${companyName} internal review packet.`);
+    const disclaimer = cleanText(printPacketDisclaimer);
+    doc.font("Helvetica").fontSize(7.5).fillColor(SOFT_INK).text([footer, disclaimer].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
+      width: CONTENT_WIDTH,
+      align: "center",
+      height: doc.page.height - footerY - 6,
+      ellipsis: true,
+    });
+  } else {
+    const bandY = doc.page.height - 46;
+    doc.rect(0, bandY, PAGE_W_FULL, 46).fill(P.brandTint);
+    doc.font("Times-Italic").fontSize(9.5).fillColor(P.brandText).text(
+      `${cleanText(companyName, "Apex HQ Workspace")} thanks you for the opportunity to earn your business.`,
+      PAGE_MARGIN, bandY + 11, {
+        width: CONTENT_WIDTH,
+        align: "center",
+        height: 14,
+        ellipsis: true,
+      },
+    );
+    const footerContact = [doc._apexFooterContactLine || ""].filter(Boolean).join("");
+    if (footerContact) {
+      doc.font("Helvetica").fontSize(7).fillColor(P.brandText).text(footerContact, PAGE_MARGIN, bandY + 28, {
+        width: CONTENT_WIDTH,
+        align: "center",
+        height: 10,
+        ellipsis: true,
+      });
+    }
+  }
+
   doc.page.margins.bottom = savedBottomMargin;
+}
+
+// Slim brand ribbon on continuation pages so every page carries the brand.
+function drawContinuationRibbon(doc) {
+  const P = docPalette(doc);
+  doc.rect(0, 0, PAGE_W_FULL, 8).fill(P.brand);
 }
 
 export async function buildEstimatePdfBuffer({
@@ -1001,38 +834,44 @@ export async function buildEstimatePdfBuffer({
   const projectName = estimateProjectName(estimate) || "Project pending";
   const printModel = deriveEstimatePrintModel(estimate, applyCompanyProfilePacketTheme(packetSettings, companyProfile));
   const printIncludes = printModel.packetSettings.includes;
-  const packetTheme = printModel.cover.theme;
+  const isInternalPacket = printModel.packetSettings.allowInternalSections;
+
+  // One brand color drives the whole document. An explicit packet theme choice
+  // (customization/theme fields) wins; otherwise the company's brand color.
+  const rawCustomization = packetSettings?.customization || {};
+  const explicitPacketAccent = (rawCustomization.themeId || rawCustomization.accentColor)
+    ? (printModel.cover?.theme?.accentColor || rawCustomization.accentColor || "")
+    : "";
+  const palette = brandPalette(resolveBrandColorHex(companyProfile, explicitPacketAccent));
+  doc._apexBrandPalette = palette;
+
   // Load the uploaded company logo once; draw sites stay synchronous and fall
   // back to the initials mark when this resolves to null.
   const logoImage = await loadPdfImageSource(companyProfile?.logoImageUrl);
 
-  const hasCoverPage = Boolean(printIncludes.projectInfo);
-  if (hasCoverPage) {
-    drawProposalCoverPage(doc, {
-      companyName,
-      companyProfile,
-      cover: printModel.cover,
-      packetModeLabel: packetAudienceLabel(printModel),
-      logoImage,
-    });
-    doc.addPage();
-    doc.y = PAGE_MARGIN;
-  }
-  drawHeader(doc, { companyName, companyProfile, headerLabel: packetHeaderLabel(printModel), theme: packetTheme, logoImage });
-  if (!hasCoverPage && printIncludes.projectInfo) {
-    drawProposalIntro(doc, {
-      estimate,
-      customerName,
-      projectName,
-      packetLabel: printModel.packetSettings.presetLabel || "Professional Proposal",
-      totals: printModel.totals,
-      pricingOptions: printModel.pricingOptions,
-      isInternal: printModel.packetSettings.allowInternalSections,
-    });
-  }
-  if (printIncludes.projectInfo) {
-    drawPacketSnapshot(doc, { printModel, customerName, projectName });
-  }
+  // Website and street address ride in the footer band so the header stays
+  // uncluttered but the full contact story is still on the page.
+  doc._apexFooterContactLine = [
+    cleanText(companyProfile?.website),
+    cleanText(companyProfile?.businessAddress),
+  ].filter(Boolean).join("   ·   ");
+
+  drawBrandBand(doc, {
+    companyName,
+    companyProfile,
+    estimate,
+    customerName,
+    projectName,
+    audienceLabel: (() => {
+      const audience = packetAudienceLabel(printModel);
+      return audience === "Proposal packet" ? "" : audience;
+    })(),
+    wordmark: isInternalPacket ? "INTERNAL REVIEW" : "ESTIMATE",
+    logoImage,
+    includeCustomerStrip: Boolean(printIncludes.projectInfo),
+  });
+
+  drawProjectTitle(doc, estimate.title);
   printModel.proposalSections.forEach((section) => drawTextSection(doc, section.title, section.text));
   printModel.gcPacketLiteSections.forEach((section) => drawTextSection(doc, section.title, section.text));
   for (const section of printModel.evidenceSections) {
@@ -1067,20 +906,16 @@ export async function buildEstimatePdfBuffer({
   }
 
   const pageRange = doc.bufferedPageRange();
-  const isInternalPacket = printModel.packetSettings.allowInternalSections;
   for (let pageIndex = pageRange.start; pageIndex < pageRange.start + pageRange.count; pageIndex += 1) {
-    if (hasCoverPage && pageIndex === pageRange.start) continue;
     doc.switchToPage(pageIndex);
+    if (pageIndex > pageRange.start) drawContinuationRibbon(doc);
     drawFooter(doc, {
       companyName,
       // The company print-packet footer/disclaimer is written for internal job
       // documentation; customer-facing estimate output gets customer copy instead.
       printPacketFooter: isInternalPacket ? printPacketFooter : "",
       printPacketDisclaimer: isInternalPacket ? printPacketDisclaimer : "",
-      theme: packetTheme,
-      defaultFooterLabel: isInternalPacket
-        ? `${companyName} internal review packet.`
-        : `${companyName} thanks you for the opportunity to earn your business.`,
+      isInternalPacket,
     });
   }
 

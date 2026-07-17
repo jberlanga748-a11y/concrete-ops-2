@@ -141,25 +141,19 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /office@apexhqdemo\.com/);
   assert.match(decodedText, /1840 River Rd S, Salem, OR 97302/);
   assert.match(decodedText, /CCB #123456 - Bonded and insured\./);
-  assert.match(decodedText, /Project Proposal/);
-  assert.match(decodedText, /PROPOSAL PACKET/);
-  assert.match(decodedText, /Ready for approval/);
-  assert.match(decodedText, /easy to review and approve/);
-  assert.match(decodedText, /WHY THIS PACKET IS READY/);
-  assert.match(decodedText, /Review scope, exclusions, and terms before approval/);
+  assert.match(decodedText, /ESTIMATE/);
+  assert.doesNotMatch(decodedText, /WHY THIS PACKET IS READY/);
   assert.doesNotMatch(decodedText, /GC \/ Prime Proposal/);
   assert.doesNotMatch(decodedText, /CONCRETE/);
   assert.doesNotMatch(decodedText, /award review/);
   assert.match(decodedText, /PREPARED FOR/);
-  assert.match(decodedText, /STATUS/);
-  assert.match(decodedText, /PROPOSAL DATE/);
   assert.match(decodedText, /5\/1\/2026/);
   assert.match(decodedText, /VALID THROUGH/);
   assert.match(decodedText, /5\/31\/2026/);
   assert.match(decodedText, /Martinez Driveway Proposal/);
   assert.match(decodedText, /Martinez Residence/);
   assert.match(decodedText, /Driveway replacement estimate/);
-  assert.match(decodedText, /BASE ESTIMATE TOTAL/);
+  assert.match(decodedText, /Base estimate total/);
   assert.match(decodedText, /\$2,837\.50/);
   assert.match(decodedText, /SCOPE OF WORK/);
   assert.match(decodedText, /Replace cracked driveway panels/);
@@ -185,10 +179,10 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /PROJECT REFERENCES/);
   assert.match(decodedText, /Driveway takeoff screenshot\.png/);
   assert.match(decodedText, /Type Takeoff screenshot/);
-  assert.match(decodedText, /Description/);
-  assert.match(decodedText, /Qty/);
-  assert.match(decodedText, /Unit Price/);
-  assert.match(decodedText, /Line Total/);
+  assert.match(decodedText, /DESCRIPTION/);
+  assert.match(decodedText, /QTY/);
+  assert.match(decodedText, /UNIT PRICE/);
+  assert.match(decodedText, /AMOUNT/);
   assert.match(decodedText, /Concrete placement/);
   assert.match(decodedText, /10/);
   assert.match(decodedText, /\$185\.00/);
@@ -269,9 +263,7 @@ test("estimate PDF draws acceptance signature block only for residential approva
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /RESIDENTIAL PROPOSAL/);
-  assert.match(decodedText, /Residential Finish Package/);
-  assert.match(decodedText, /Ready for homeowner review/);
+  assert.match(decodedText, /ESTIMATE/);
   assert.match(decodedText, /CUSTOMER APPROVAL RECORD/);
   assert.match(decodedText, /ACCEPTED BY/);
   assert.match(decodedText, /SIGNATURE/);
@@ -291,12 +283,11 @@ test("residential proposal PDF defaults to homeowner-ready cover language", asyn
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /RESIDENTIAL PROPOSAL/);
-  assert.match(decodedText, /Ready for homeowner review/);
-  assert.match(decodedText, /homeowner-ready proposal/);
-  assert.match(decodedText, /HOME SCOPE/);
+  assert.match(decodedText, /ESTIMATE/);
   assert.match(decodedText, /CUSTOMER APPROVAL RECORD/);
+  assert.match(decodedText, /ACCEPTED BY/);
   assert.doesNotMatch(decodedText, /contractor proposal packet/);
+  assert.doesNotMatch(decodedText, /WHY THIS PACKET IS READY/);
 });
 
 test("GC prime proposal PDF defaults to bid package language", async () => {
@@ -313,12 +304,11 @@ test("GC prime proposal PDF defaults to bid package language", async () => {
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /BID PACKAGE/);
-  assert.match(decodedText, /Ready for award review/);
-  assert.match(decodedText, /GC-ready bid package/);
-  assert.match(decodedText, /BID SCOPE/);
+  assert.match(decodedText, /GC \/ prime proposal packet/);
   assert.match(decodedText, /ADDENDA \/ RFI/);
+  assert.match(decodedText, /RFI 03 and Addendum 01 reviewed/);
   assert.doesNotMatch(decodedText, /contractor proposal packet/);
+  assert.doesNotMatch(decodedText, /Ready for award review/);
 });
 
 test("estimate PDF applies GC prime packet customization", async () => {
@@ -348,12 +338,11 @@ test("estimate PDF applies GC prime packet customization", async () => {
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /Concrete Bid/i);
-  assert.match(decodedText, /Prime Bid Package/);
-  assert.match(decodedText, /Built for GC review/i);
-  assert.match(decodedText, /Ready for award review/);
-  assert.match(decodedText, /Custom scope, alternates, and closeout expectations are organized for the GC team/);
-  assert.match(decodedText, /Confirm addenda and inclusions before award/);
+  assert.match(decodedText, /ESTIMATE/);
+  assert.match(decodedText, /GC \/ prime proposal packet/);
+  assert.match(decodedText, /ADDENDA \/ RFI REFERENCES/);
+  assert.match(decodedText, /RFI 03 and Addendum 01 reviewed/);
+  assert.doesNotMatch(decodedText, /Prime Bid Package|Built for GC review|Ready for award review/);
 });
 
 test("estimate PDF applies commercial subcontractor packet customization", async () => {
@@ -383,10 +372,8 @@ test("estimate PDF applies commercial subcontractor packet customization", async
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /Subcontractor Proposal/i);
-  assert.match(decodedText, /Commercial Sub Bid/);
-  assert.match(decodedText, /Ready for subcontract review/);
-  assert.match(decodedText, /Confirm scope limits, addenda, access, and billing terms before award/);
+  assert.match(decodedText, /Subcontractor proposal packet/i);
+  assert.doesNotMatch(decodedText, /Commercial Sub Bid|Ready for subcontract review/);
   assert.doesNotMatch(decodedText, /CUSTOMER APPROVAL RECORD/);
   assert.doesNotMatch(decodedText, /RESIDENTIAL LEGAL NOTICES/);
   assert.doesNotMatch(decodedText, /Office-only|Internal packet assembly note|Private SOV backup|Private sent history/);
@@ -407,14 +394,10 @@ test("estimate PDF uses polished commercial subcontractor packet defaults", asyn
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /Subcontractor Proposal/i);
-  assert.match(decodedText, /Commercial Sub Bid/);
-  assert.match(decodedText, /Scope boundaries, coordination notes, and billing terms ready for review/i);
-  assert.match(decodedText, /Ready for subcontract review/);
-  assert.match(decodedText, /Qualifications, schedule coordination, alternates, exclusions, and billing terms/);
-  assert.match(decodedText, /Confirm scope limits, addenda, access, and billing terms before award/);
-  assert.match(decodedText, /Scope limits/i);
-  assert.match(decodedText, /Billing terms/i);
+  assert.match(decodedText, /Subcontractor proposal packet/i);
+  assert.match(decodedText, /SCOPE OF WORK/);
+  assert.match(decodedText, /PAYMENT TERMS/);
+  assert.doesNotMatch(decodedText, /Commercial Sub Bid|Ready for subcontract review/);
   assert.doesNotMatch(decodedText, /A contractor proposal packet/i);
   assert.doesNotMatch(decodedText, /CUSTOMER APPROVAL RECORD/);
   assert.doesNotMatch(decodedText, /RESIDENTIAL LEGAL NOTICES/);
@@ -465,14 +448,12 @@ test("polished estimate sheet PDF uses estimate language instead of proposal cov
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /Estimate Sheet/);
-  assert.match(decodedText, /Ready for customer review/);
-  assert.match(decodedText, /WHY THIS ESTIMATE IS READY/);
-  assert.match(decodedText, /ESTIMATE DATE/);
+  assert.match(decodedText, /ESTIMATE/);
+  assert.match(decodedText, /Customer estimate sheet/);
   assert.match(decodedText, /Yard Concrete Co\. thanks you for the opportunity/);
   assert.doesNotMatch(decodedText, /CONCRETE PR OPOSAL/);
   assert.doesNotMatch(decodedText, /Yard Concrete Co\. proposal packet\./);
-  assert.doesNotMatch(decodedText, /WHY THIS PACKET IS READY/);
+  assert.doesNotMatch(decodedText, /WHY THIS PACKET IS READY|WHY THIS ESTIMATE IS READY/);
 });
 
 test("estimate PDF internal review packet can include office-only backup when explicitly allowed", async () => {
@@ -520,9 +501,8 @@ test("estimate PDF internal review packet can include office-only backup when ex
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /OFFICE REVIEW PACKET/);
-  assert.match(decodedText, /Internal Bid Review/);
-  assert.match(decodedText, /Ready for office review/);
+  assert.match(decodedText, /INTERNAL REVIEW/);
+  assert.match(decodedText, /Internal review packet/);
   assert.match(decodedText, /SCHEDULE OF VALUES BACKUP/);
   assert.match(decodedText, /Mobilization/);
   assert.match(decodedText, /TAKEOFF BACKUP/);
@@ -572,16 +552,9 @@ test("estimate PDF internal review packet uses polished office-review defaults",
   });
   const decodedText = extractPdfText(buffer);
 
-  assert.match(decodedText, /OFFICE REVIEW PACKET/);
-  assert.match(decodedText, /Internal Bid Review/);
-  assert.match(decodedText, /Ready for office review/);
-  assert.match(decodedText, /REVIEW DATE/);
-  assert.match(decodedText, /Review Snapshot/i);
-  assert.match(decodedText, /SOV backup, takeoff references, internal notes, and review risks/);
-  assert.match(decodedText, /Office-only packet\. Do not send to customers or field crews/);
-  assert.match(decodedText, /SOV BACKUP/i);
-  assert.match(decodedText, /TAKEOFF EVIDENCE/i);
-  assert.match(decodedText, /RISK REVIEW/i);
+  assert.match(decodedText, /INTERNAL REVIEW/);
+  assert.match(decodedText, /Internal review packet/);
+  assert.match(decodedText, /internal review packet\./);
   assert.match(decodedText, /SCHEDULE OF VALUES BACKUP/);
   assert.match(decodedText, /Bluebeam slab screenshot/);
   assert.match(decodedText, /Visible office note/);
