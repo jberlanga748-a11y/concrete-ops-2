@@ -308,9 +308,9 @@ export function EstimatesPagePolished({
   const canManage = Boolean(permissions?.estimates?.canManage);
   const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
   const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
-  // Simple fence mode uses the command shell's stripped 4-step flow
-  // (Details/Price/Preview/Send) on every viewport instead of the multi-tool
-  // studio drawer.
+  // Simple fence mode uses the command shell's 4-step flow on every viewport
+  // (the mobile pipeline overlays it as the landing surface; opening an
+  // estimate reveals the shell).
   const canUseEstimatesCommandShell = Boolean(permissions?.estimates?.canView && (isDesktopCommandViewport || simpleFenceMode));
   const companyPrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
@@ -1110,16 +1110,20 @@ export function EstimatesPagePolished({
     return true;
   }
 
+  function openEstimatePdfById(estimateId) {
+    if (!estimateId || typeof window === "undefined") return;
+    // Opens the same customer-facing PDF the email path renders (inline preview);
+    // auth rides on the session cookie and this needs no email configuration.
+    window.open(`/api/estimates/${encodeURIComponent(estimateId)}/pdf`, "_blank", "noopener");
+  }
+
   function handleViewEstimatePdf() {
     const estimateId = selectedEstimate?.id;
     if (!estimateId) {
       showCopyFeedback("Save the estimate before viewing its PDF.");
       return;
     }
-    if (typeof window === "undefined") return;
-    // Opens the same customer-facing PDF the email path renders (inline preview);
-    // auth rides on the session cookie and this needs no email configuration.
-    window.open(`/api/estimates/${encodeURIComponent(estimateId)}/pdf`, "_blank", "noopener");
+    openEstimatePdfById(estimateId);
   }
 
   async function handleRecordSentSnapshot() {
@@ -1186,7 +1190,7 @@ export function EstimatesPagePolished({
       hasContact ? "" : "contact",
       hasScope ? "" : "scope",
       hasPricing ? "" : "pricing",
-      packetReady ? "" : "packet backup",
+      packetReady || simpleFenceMode ? "" : "packet backup",
     ].filter(Boolean);
 
     return {
@@ -1270,7 +1274,7 @@ export function EstimatesPagePolished({
     },
     {
       id: "approved-handoff",
-      label: "Approved Handoff",
+      label: simpleFenceMode ? "Approved" : "Approved Handoff",
       value: approvedHandoffRows.length,
       helper: "Approved, not converted",
       icon: "check",
@@ -1293,13 +1297,13 @@ export function EstimatesPagePolished({
             ? "orange"
             : "slate";
     const kindLabel = kind === "approved"
-      ? "Approved handoff"
+      ? (simpleFenceMode ? "Approved" : "Approved handoff")
       : kind === "ready"
         ? "Ready to send"
         : kind === "sent"
           ? "Sent to win"
           : kind === "packet"
-            ? "Packet gap"
+            ? (simpleFenceMode ? "Needs review" : "Packet gap")
             : kind === "draft"
               ? "Draft to price"
               : "Estimate";
@@ -1379,7 +1383,9 @@ export function EstimatesPagePolished({
     || (selectedEstimate ? buildEstimateShellItem(selectedEstimate, "estimate", 120) : null);
   const estimateShellSelectedId = selectedEstimateShellItem?.id || "";
   const estimateShellAssistantDescription = approvedHandoffRows.length
-    ? `${approvedHandoffRows.length} approved estimate${approvedHandoffRows.length === 1 ? "" : "s"} need manual job handoff review.`
+    ? (simpleFenceMode
+      ? `${approvedHandoffRows.length} approved estimate${approvedHandoffRows.length === 1 ? " is" : "s are"} ready to become ${approvedHandoffRows.length === 1 ? "a job" : "jobs"}.`
+      : `${approvedHandoffRows.length} approved estimate${approvedHandoffRows.length === 1 ? "" : "s"} need manual job handoff review.`)
     : readyToSendRows.length
       ? `${readyToSendRows.length} priced proposal${readyToSendRows.length === 1 ? "" : "s"} ready for human send review.`
       : draftToPriceRows.length
@@ -1388,8 +1394,8 @@ export function EstimatesPagePolished({
   const estimateShellAssistantActions = [
     { label: "Price Draft", icon: "document", onClick: () => selectEstimateShellEstimate(draftToPriceRows[0], "pricing"), disabled: !draftToPriceRows.length },
     { label: "Review Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
-    { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
-  ];
+    simpleFenceMode ? null : { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
+  ].filter(Boolean);
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
     simpleFenceMode ? null : { id: "takeoff-tool", label: "New Takeoff", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
@@ -1492,9 +1498,14 @@ export function EstimatesPagePolished({
           ? `Finish ${readiness.missing.slice(0, 3).join(", ")}.`
           : "Open the estimate tool you need next.";
     const isFocusedShellEditMode = ["create", "pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "send", "handoff"].includes(activeShellMode.id);
-    const visibleEstimateShellModes = isFocusedShellEditMode
-      ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
-      : estimateShellModes.filter((mode) => !(simpleFenceMode && mode.id === "create"));
+    // Simple fence mode keeps all four steps visible as a permanent stepper;
+    // clicking a step only switches the active panel. The full studio keeps
+    // its focused-mode collapse.
+    const visibleEstimateShellModes = simpleFenceMode
+      ? estimateShellModes.filter((mode) => mode.id !== "create")
+      : isFocusedShellEditMode
+        ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
+        : estimateShellModes;
     const pricingSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const proposalSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const backupSaveDisabled = busy || !canManage || !selectedEstimate?.id;
@@ -2389,6 +2400,54 @@ export function EstimatesPagePolished({
     }
 
     function renderEstimateShellSendReviewMode() {
+      if (simpleFenceMode) {
+        const isSendStep = activeShellMode.id === "send";
+        return (
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-send-review-panel co-estimates-shell-simple-preview" role="region" aria-label={isSendStep ? "Send the estimate" : "Estimate preview"}>
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="blue">Customer proposal</Badge>
+                <h3>{isSendStep ? "Send" : "Preview"}</h3>
+                <p>{isSendStep
+                  ? "Send the proposal to the customer after your review. Nothing goes out without this explicit step."
+                  : "This is the proposal PDF the customer receives. Open it to check every page before sending."}</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(status)} />
+            </div>
+            <div className="co-estimates-shell-pdf-hero">
+              <div>
+                <strong>{estimateDisplayTitle(estimate)}</strong>
+                <span>{formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)} total{detailEstimateCustomerEmail ? ` / ${detailEstimateCustomerEmail}` : " / no customer email yet"}</span>
+              </div>
+              <Button type="button" size="lg" variant={isSendStep ? "secondary" : "primary"} onClick={handleViewEstimatePdf} disabled={!selectedEstimate?.id}>
+                View PDF
+              </Button>
+            </div>
+            <div className="co-estimates-shell-workflow-actions">
+              {isSendStep && emailSendingConfigured ? (
+                <Button type="button" onClick={handleSendEstimate} disabled={!sendReviewCanSend || busy}>Send estimate</Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => copyEstimateText(
+                  () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
+                  "Customer message copied for manual review.",
+                )}
+                disabled={!detailEstimatePreview}
+              >
+                Copy customer message
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, customerSafePacketSettings)} disabled={!detailEstimatePreview}>
+                Print proposal
+              </Button>
+            </div>
+            {isSendStep && !emailSendingConfigured ? (
+              <p className="co-estimates-shell-simple-send-note">Email sending is not configured yet, so copy the customer message or print the proposal to deliver it manually.</p>
+            ) : null}
+          </div>
+        );
+      }
       return (
         <div className="co-estimates-shell-workflow-panel co-estimates-shell-send-review-panel" role="region" aria-label="Estimate send review">
           <div className="co-estimates-shell-workflow-head">
@@ -2579,7 +2638,7 @@ export function EstimatesPagePolished({
           <h2>{estimateDisplayTitle(estimate)}</h2>
           <p>{[estimateDisplayCustomer(estimate), estimateDisplayLead(estimate)].filter(Boolean).join(" / ") || "Customer or lead pending"}</p>
         </div>
-        <div className="co-estimates-shell-mode-tabs" role="tablist" aria-label="Estimate shell detail modes">
+        <div className={`co-estimates-shell-mode-tabs${simpleFenceMode ? " co-estimates-shell-simple-stepper" : ""}`} role="tablist" aria-label="Estimate shell detail modes">
           {visibleEstimateShellModes.map((mode) => (
             <button
               key={mode.id}
@@ -2594,7 +2653,15 @@ export function EstimatesPagePolished({
           ))}
         </div>
         {renderEstimateShellModePlaceholder()}
-        {isFocusedShellEditMode ? null : (
+        {isFocusedShellEditMode ? null : simpleFenceMode ? (
+          <div className="co-apex-selected-facts co-estimates-shell-selected-facts co-estimates-shell-simple-facts">
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
+            <span><em>Scope</em><strong>{readiness.hasScope ? "Ready" : "Needs scope"}</strong></span>
+            <span><em>Total</em><strong>{formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions)}</strong></span>
+            <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
+          </div>
+        ) : (
           <>
             <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
               <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
@@ -2680,7 +2747,7 @@ export function EstimatesPagePolished({
           </>
         )}
         {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
-        {isFocusedShellEditMode ? null : (
+        {isFocusedShellEditMode || simpleFenceMode ? null : (
           <div className="co-apex-selected-actions">
             {safeActions.map((action, index) => (
               <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick} disabled={action.disabled}>
@@ -2760,7 +2827,7 @@ export function EstimatesPagePolished({
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
       { value: sentToWinRows.length, label: "sent to win", tone: sentToWinRows.length ? "amber" : "slate" },
-      { value: approvedHandoffRows.length, label: "handoffs", tone: approvedHandoffRows.length ? "green" : "slate" },
+      { value: approvedHandoffRows.length, label: simpleFenceMode ? "approved" : "handoffs", tone: approvedHandoffRows.length ? "green" : "slate" },
     ];
   const estimateShellAssistantActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -2812,7 +2879,11 @@ export function EstimatesPagePolished({
                       { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
                     ]
     : estimateShellAssistantActions;
-  const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
+  // Simple fence mode: the 4-step stepper handles navigation, so the studio
+  // quick-action rail collapses to the one action the steps cannot reach.
+  const estimateShellQuickActionsForMode = simpleFenceMode
+    ? [{ id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage }]
+    : estimateShellMode === "pricing"
     ? [
       { id: "pricing-mode", label: "Pricing", icon: "document", onClick: () => setEstimateShellMode("pricing"), disabled: !selectedEstimate },
       { id: "pricing-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
@@ -2902,6 +2973,20 @@ export function EstimatesPagePolished({
     setActive?.("estimates");
   }
 
+  function openMobilePipelineEstimate(id) {
+    if (!id) return;
+    setEstimateViewMode("browse");
+    setSelectedEstimateId(id);
+    if (simpleFenceMode) {
+      // Fence owners land straight on the 4-step "3. Preview" step, which
+      // leads with the proposal PDF, instead of staying on the pipeline.
+      setEstimateShellSelectionId(`estimate-${id}`);
+      setEstimateShellMode("sendReview");
+      setForceMobileEstimateStudio(true);
+    }
+    setActive?.("estimates");
+  }
+
   if (canUseEstimatesCommandShell) {
     return (
       <>
@@ -2917,13 +3002,10 @@ export function EstimatesPagePolished({
             setActive={setActive}
             onSelectLead={onSelectLead}
             onSelectCustomer={onSelectCustomer}
-            onOpenEstimate={(id) => {
-              setEstimateViewMode("browse");
-              setSelectedEstimateId(id);
-              setActive?.("estimates");
-            }}
+            onOpenEstimate={openMobilePipelineEstimate}
             onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
             onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
+            onViewEstimatePdf={openEstimatePdfById}
             activeModule="estimates"
             simpleFenceMode={simpleFenceMode}
           />
@@ -2941,13 +3023,10 @@ export function EstimatesPagePolished({
             setActive={setActive}
             onSelectLead={onSelectLead}
             onSelectCustomer={onSelectCustomer}
-            onOpenEstimate={(id) => {
-              setEstimateViewMode("browse");
-              setSelectedEstimateId(id);
-              setActive?.("estimates");
-            }}
+            onOpenEstimate={openMobilePipelineEstimate}
             onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
             onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
+            onViewEstimatePdf={openEstimatePdfById}
             activeModule="estimates"
             simpleFenceMode={simpleFenceMode}
           />
@@ -2955,14 +3034,23 @@ export function EstimatesPagePolished({
       ) : null}
       <div className={showEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
       <div className={`co-office-page co-estimates-page co-estimates-shell-page${estimateShellMode === "takeoff" ? " co-estimates-shell-page--takeoff" : ""}`}>
+        {forceMobileEstimateStudio && canUseEstimatorMobilePipeline ? (
+          <div className="co-sales-mobile-studio-return px-5 pt-4 lg:hidden">
+            <Button type="button" variant="secondary" onClick={() => setForceMobileEstimateStudio(false)}>Back to estimates</Button>
+          </div>
+        ) : null}
         <ApexOfficeCommandShell
           eyebrow="Office Sales"
           title="Estimate Studio"
-          description="Review pricing readiness, send-ready proposals, sent follow-up, and approved handoffs from one no-drawer command view."
+          description={simpleFenceMode
+            ? "Price the estimate, preview the proposal PDF, and send it -- one step at a time."
+            : "Review pricing readiness, send-ready proposals, sent follow-up, and approved handoffs from one no-drawer command view."}
           kpis={estimateShellKpis}
           queue={{
             title: "Estimate queue",
-            description: `${estimateShellQueue.length} work item${estimateShellQueue.length === 1 ? "" : "s"} shown from pricing, send, follow-up, and handoff readiness.`,
+            description: simpleFenceMode
+              ? `${estimateShellQueue.length} estimate${estimateShellQueue.length === 1 ? "" : "s"} to price, send, or follow up on.`
+              : `${estimateShellQueue.length} work item${estimateShellQueue.length === 1 ? "" : "s"} shown from pricing, send, follow-up, and handoff readiness.`,
             items: estimateShellQueue,
             selectedId: estimateShellSelectedId,
             onSelect: selectEstimateShellItem,
@@ -3004,13 +3092,10 @@ export function EstimatesPagePolished({
           setActive={setActive}
           onSelectLead={onSelectLead}
           onSelectCustomer={onSelectCustomer}
-          onOpenEstimate={(id) => {
-            setEstimateViewMode("browse");
-            setSelectedEstimateId(id);
-            setActive?.("estimates");
-          }}
+          onOpenEstimate={openMobilePipelineEstimate}
           onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
           onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
+          onViewEstimatePdf={openEstimatePdfById}
           activeModule="estimates"
           simpleFenceMode={simpleFenceMode}
         />
@@ -3028,13 +3113,10 @@ export function EstimatesPagePolished({
           setActive={setActive}
           onSelectLead={onSelectLead}
           onSelectCustomer={onSelectCustomer}
-          onOpenEstimate={(id) => {
-            setEstimateViewMode("browse");
-            setSelectedEstimateId(id);
-            setActive?.("estimates");
-          }}
+          onOpenEstimate={openMobilePipelineEstimate}
           onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
           onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
+          onViewEstimatePdf={openEstimatePdfById}
           activeModule="estimates"
           simpleFenceMode={simpleFenceMode}
         />
