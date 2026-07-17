@@ -58,6 +58,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 100%;
   overflow-x: clip;
 }
@@ -71,6 +72,7 @@ textarea {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 100%;
   overflow-x: clip;
 }
@@ -6510,12 +6512,48 @@ textarea {
     border-radius: 0.86rem !important;
   }
 
+  /* The mobile app shell is a flex column that fills the visual viewport
+     (100dvh). The module region grows to meet the bottom nav clearance
+     instead of forcing fixed viewport-height minimums, which overshot the
+     screen on short pages (topbar + nav clearance stacked on top) and left
+     dead scroll space between the content and the bottom nav. */
+  .co-app-shell.min-h-screen {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .co-app-shell.min-h-screen > .flex {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .co-workspace-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .co-workspace-shell > main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .co-module-frame {
-    min-height: calc(100vh - var(--layout-topbar-height, 4.5rem));
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .co-module-frame:not(.co-module-commandCenter) {
+    display: flex;
+    flex-direction: column;
   }
 
   .co-module-frame:not(.co-module-commandCenter) > div {
-    min-height: calc(100vh - var(--layout-topbar-height, 4.5rem));
+    flex: 1 1 auto;
+    min-height: 0;
     color: #07111f;
   }
 
@@ -50506,8 +50544,11 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     color: var(--color-shell-text) !important;
   }
 
+  /* .mobile-content-safe on the workspace shell already reserves the
+     bottom-nav clearance on phones; a second clearance from this spacer is
+     the dead gray band that used to sit under every phone screen. */
   .co-mobile-bottom-spacer {
-    height: var(--co-mobile-bottom-nav-clearance) !important;
+    height: 0 !important;
   }
 }
 
@@ -50778,8 +50819,16 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 }
 
 @media (max-width: 767px) {
+  /* Stretch the mobile sales pipeline to the module region's height instead
+     of a fixed viewport-height minimum (dead-space fix). */
   .co-sales-mobile-only {
-    display: block;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .co-sales-mobile-only > * {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .co-sales-mobile-desktop-content {
@@ -50787,11 +50836,12 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 
   .co-apex-mobile-role-shell {
-    min-height: calc(100dvh - var(--co-mobile-bottom-nav-height, 5.75rem));
+    min-height: 0;
     min-width: 0;
     overflow-x: hidden;
     background: linear-gradient(180deg, #07111f 0, #111827 9.5rem, #e2e8f0 9.5rem, #e2e8f0 100%);
-    padding: 1rem 0.9rem calc(var(--co-mobile-bottom-nav-clearance, 7rem) + 0.75rem);
+    /* nav clearance now comes from the workspace shell padding only */
+    padding: 1rem 0.9rem 1rem;
   }
 
   .co-apex-mobile-role-head {
@@ -54532,7 +54582,8 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
       "selected"
       "queue";
     gap: 0.58rem;
-    padding: 0.82rem 0.78rem calc(var(--co-mobile-bottom-nav-clearance, 7rem) + 1.75rem);
+    /* nav clearance now comes from the workspace shell padding only */
+    padding: 0.82rem 0.78rem 1rem;
   }
 
   .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-role-head {
@@ -54712,8 +54763,12 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     margin-top: 0.54rem;
   }
 
+  /* This row used to be display:none on phones, which left owners with no
+     way to open an estimate (or its PDF) from the mobile pipeline. Keep it
+     visible as a compact grid: Open estimate / View PDF / Full route. */
   .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-actions {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-contact-actions a,
@@ -56569,4 +56624,145 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .proposal-pricing thead {
     display: table-header-group;
   }
+}
+
+/* Fence-pilot simple mode: the estimate detail's 4-step flow uses a big,
+   always-visible stepper and a prominent PDF preview. Scoped to the
+   .co-estimates-shell-simple-* classes so the full estimate studio keeps its
+   compact tabs. Lives in the components layer so its !important tap-target
+   sizes participate in the same cascade as the generic estimate button rule. */
+@layer components {
+.co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+/* The .co-app-shell main button tap-target rule is !important at (0,2,2)
+   specificity, so the stepper size carries the shell prefix (size only --
+   cosmetics stay low-specificity so .is-active can restyle them). */
+.co-app-shell main .co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button {
+  min-height: 3.4rem !important;
+}
+
+.co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button {
+  min-height: 3.4rem !important;
+  min-width: 0;
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  border-radius: 0.9rem;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.5rem 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 950;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
+}
+
+.co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button:hover {
+  border-color: rgba(234, 88, 12, 0.6);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button.is-active {
+  border-color: #ea580c;
+  background: #ea580c;
+  color: #ffffff;
+  box-shadow: 0 10px 22px -14px rgba(234, 88, 12, 0.85);
+}
+
+@media (max-width: 479px) {
+  .co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-app-shell main .co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button {
+    min-height: 3.6rem !important;
+  }
+
+  .co-estimates-shell-mode-tabs.co-estimates-shell-simple-stepper button {
+    min-height: 3.6rem !important;
+    font-size: 1rem;
+  }
+}
+
+.co-estimates-shell-pdf-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  padding: 0.9rem 1rem;
+}
+
+.co-estimates-shell-pdf-hero > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.co-estimates-shell-pdf-hero strong {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.co-estimates-shell-pdf-hero span {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.co-estimates-shell-pdf-hero button {
+  min-height: 3rem;
+  padding-left: 1.4rem;
+  padding-right: 1.4rem;
+  font-weight: 950;
+}
+
+@media (max-width: 479px) {
+  .co-estimates-shell-pdf-hero button {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
+
+.co-estimates-shell-simple-send-note {
+  margin-top: 0.55rem;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+/* The command shell only rendered on desktop before simple fence mode; give
+   it phone-friendly spacing when it appears on small screens. */
+@media (max-width: 767px) {
+  .co-estimates-shell-page .co-apex-office-command-head {
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.8rem 0.9rem 0;
+  }
+
+  .co-estimates-shell-page .co-apex-office-command-frame {
+    padding: 0 0.9rem 1rem;
+  }
+
+  .co-estimates-shell-page .co-apex-quick-action-bar {
+    justify-content: flex-start;
+  }
+
+  .co-estimates-shell-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 }

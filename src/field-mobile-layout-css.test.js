@@ -2,6 +2,39 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
+test("mobile app shell fills the viewport with flex growth instead of fixed min-heights", () => {
+  const cssSource = fs.readFileSync(new URL("./index.css", import.meta.url), "utf8");
+
+  // The shell is a 100dvh flex column and the module region grows to fill it.
+  assert.match(cssSource, /\.co-app-shell\.min-h-screen \{[\s\S]{0,200}?min-height: 100dvh;[\s\S]{0,200}?display: flex;[\s\S]{0,200}?flex-direction: column;/);
+  assert.match(cssSource, /\.co-workspace-shell > main \{[\s\S]{0,200}?flex: 1 1 auto;/);
+  assert.match(cssSource, /\.co-module-frame \{[\s\S]{0,120}?flex: 1 1 auto;[\s\S]{0,120}?min-height: 0;/);
+
+  // The dead-space regression: no fixed viewport-height minimums on the
+  // mobile module frame or the phone sales/role shells (the tablet grid
+  // shell keeps its own compound-selector rule).
+  assert.doesNotMatch(cssSource, /\.co-module-frame \{[\s\S]{0,120}?min-height: calc\(100vh/);
+  assert.doesNotMatch(cssSource, /(?<!-only \.)co-apex-mobile-role-shell \{\s*min-height: calc\(100dvh/);
+  assert.match(cssSource, /\.co-apex-mobile-role-shell \{\s*min-height: 0;/);
+  assert.match(cssSource, /\.co-sales-mobile-only \{[\s\S]{0,120}?display: flex;[\s\S]{0,120}?flex-direction: column;/);
+
+  // Root containers prefer dynamic viewport units on mobile browsers.
+  assert.match(cssSource, /body \{[\s\S]{0,160}?min-height: 100vh;[\s\S]{0,60}?min-height: 100dvh;/);
+  assert.match(cssSource, /#root \{[\s\S]{0,160}?min-height: 100vh;[\s\S]{0,60}?min-height: 100dvh;/);
+});
+
+test("simple fence estimate stepper stays large and always visible", () => {
+  const cssSource = fs.readFileSync(new URL("./index.css", import.meta.url), "utf8");
+  const estimatesSource = fs.readFileSync(new URL("./estimates-page-components.jsx", import.meta.url), "utf8");
+
+  assert.match(cssSource, /\.co-estimates-shell-mode-tabs\.co-estimates-shell-simple-stepper button \{[\s\S]{0,200}?min-height: 3\.4rem !important;/);
+  assert.match(cssSource, /\.co-estimates-shell-pdf-hero \{/);
+  // Simple mode keeps every step visible; only the full studio collapses to
+  // the focused mode.
+  assert.match(estimatesSource, /const visibleEstimateShellModes = simpleFenceMode\s*\?\s*estimateShellModes\.filter\(\(mode\) => mode\.id !== "create"\)/);
+  assert.match(estimatesSource, /co-estimates-shell-simple-stepper/);
+});
+
 test("field mobile jobs shell owns queue layout above fixed nav", () => {
   const cssSource = fs.readFileSync(new URL("./index.css", import.meta.url), "utf8");
 

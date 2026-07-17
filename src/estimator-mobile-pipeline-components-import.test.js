@@ -27,3 +27,19 @@ test("estimator mobile pipeline page is extracted and passed through route shell
     assert.doesNotMatch(appSource, new RegExp(`function ${name}\\b`));
   }
 });
+
+test("mobile pipeline exposes a View PDF action for saved estimates", () => {
+  const pipelineSource = fs.readFileSync(new URL("./estimator-mobile-pipeline-components.jsx", import.meta.url), "utf8");
+  const estimatesSource = fs.readFileSync(new URL("./estimates-page-components.jsx", import.meta.url), "utf8");
+
+  // The selected estimate card offers View PDF next to Open estimate.
+  assert.match(pipelineSource, /onViewEstimatePdf,/);
+  assert.match(pipelineSource, /selectedItem\.kind === "estimate" && selectedItem\.recordId && typeof onViewEstimatePdf === "function"/);
+  assert.match(pipelineSource, /onViewEstimatePdf\(selectedItem\.recordId\)\}>View PDF<\/Button>/);
+
+  // The estimates route wires the handler to the same PDF endpoint the
+  // desktop send-review button uses (session-cookie auth, inline preview).
+  assert.match(estimatesSource, /function openEstimatePdfById\(estimateId\)/);
+  assert.match(estimatesSource, /window\.open\(`\/api\/estimates\/\$\{encodeURIComponent\(estimateId\)\}\/pdf`, "_blank", "noopener"\)/);
+  assert.match(estimatesSource, /onViewEstimatePdf=\{openEstimatePdfById\}/);
+});

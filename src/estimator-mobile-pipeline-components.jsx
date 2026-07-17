@@ -174,6 +174,7 @@ export function EstimatorMobilePipelinePage({
   onOpenEstimate,
   onOpenTakeoff,
   onStartTakeoff,
+  onViewEstimatePdf,
   onSelectCustomer,
   activeModule = "leads",
 }) {
@@ -336,6 +337,9 @@ export function EstimatorMobilePipelinePage({
             />
             <div className="co-apex-mobile-selected-actions">
               <Button type="button" onClick={() => openPipelineItem(selectedItem)}>{selectedItem.actionLabel || "Open"}</Button>
+              {selectedItem.kind === "estimate" && selectedItem.recordId && typeof onViewEstimatePdf === "function" ? (
+                <Button type="button" variant="secondary" onClick={() => onViewEstimatePdf(selectedItem.recordId)}>View PDF</Button>
+              ) : null}
               <Button type="button" variant="secondary" onClick={() => openModule(selectedItem.moduleId || activeModule || "leads")}>Full route</Button>
             </div>
             <p className="co-apex-mobile-guardrail">Manual only: text and email open drafts only. No sends, internal notes, backup/SOV, private URLs, pricing details, or job conversion from this card.</p>
