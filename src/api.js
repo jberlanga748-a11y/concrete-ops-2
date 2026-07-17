@@ -987,6 +987,10 @@ export function clockOut(token, id, payload = {}) {
   return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token, body: payload });
 }
 
+export function adminClockOutTimeEntry(token, id) {
+  return request(`/api/time-entries/${id}/admin-clock-out`, { method: "POST", token });
+}
+
 export function correctTimeEntry(token, id, payload) {
   return request(`/api/time-entries/${id}`, { method: "PATCH", token, body: payload });
 }

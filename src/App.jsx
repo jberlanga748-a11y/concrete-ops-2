@@ -78,6 +78,7 @@ import {
   archiveLead,
   archiveLeadSource,
   archiveQueueItem,
+  adminClockOutTimeEntry,
   approvePayrollPrep,
   assistEstimateRoughNotes as assistEstimateRoughNotesRequest,
   assistLead as assistLeadRequest,
@@ -14336,6 +14337,16 @@ export default function App() {
     runMutation(() => approvePayrollPrep(sessionToken, period));
   }
 
+  function handleAdminClockOutTimeEntry(entryId, workerName = "") {
+    const canUsePayrollPrep = ["Owner", "Administrator"].includes(appState.user?.role || "");
+    if (!sessionToken || !canUsePayrollPrep || !entryId) return;
+    const confirmed = typeof window === "undefined" || window.confirm(
+      `Clock out ${workerName || "this worker"}'s active time entry now? This closes their shift at the current time and is logged to the audit trail.`,
+    );
+    if (!confirmed) return;
+    runMutation(() => adminClockOutTimeEntry(sessionToken, entryId));
+  }
+
   async function handleExportPayrollPrep(period) {
     const canUsePayrollPrep = ["Owner", "Administrator"].includes(appState.user?.role || "");
     if (!sessionToken || !canUsePayrollPrep) return;
@@ -17841,6 +17852,7 @@ export default function App() {
                 onReviewTimePresence={handleReviewTimePresence}
                 onApprovePayrollPrep={handleApprovePayrollPrep}
                 onExportPayrollPrep={handleExportPayrollPrep}
+                onAdminClockOutTimeEntry={handleAdminClockOutTimeEntry}
                 onClockIn={handleClockIn}
                 onClockOut={handleClockOut}
                 onStartBreak={handleStartBreak}

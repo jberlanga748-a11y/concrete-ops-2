@@ -53,6 +53,7 @@ function PayrollPrepPanel({
   busy,
   onApprove,
   onExport,
+  onAdminClockOut,
 }) {
   if (!prep) return null;
 
@@ -107,31 +108,50 @@ function PayrollPrepPanel({
         </div>
         {prep.period.errors?.length ? (
           <StateCard title="Pay period needs a valid date range" description={prep.period.errors.join(" ")} tone="amber" />
-        ) : prep.exceptions.length ? (
-          <div className="grid gap-2 rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">Review exceptions before approval</p>
-            {prep.exceptions.slice(0, 4).map((item) => (
-              <button key={item.id} type="button" className="rounded-xl border border-amber-100 bg-white p-2 text-left" disabled>
-                <span className="block text-xs font-black text-slate-950">{item.userName} / {item.jobTitle}</span>
-                <span className="mt-0.5 block text-xs font-bold text-slate-600">{item.reason}</span>
-              </button>
-            ))}
-            {prep.exceptions.length > 4 ? <p className="text-xs font-bold text-amber-800">{prep.exceptions.length - 4} more exception{prep.exceptions.length - 4 === 1 ? "" : "s"} in this period.</p> : null}
-          </div>
-        ) : prep.employeeSummaries.length ? (
-          <div className="grid gap-2">
-            {prep.employeeSummaries.slice(0, 4).map((item) => (
-              <div key={item.userId || item.userName} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
-                <span className="min-w-0">
-                  <strong className="block truncate text-xs font-black text-slate-950">{item.userName}</strong>
-                  <em className="block text-[11px] font-bold not-italic text-slate-500">{item.entries} entr{item.entries === 1 ? "y" : "ies"} / break {formatMinutes(item.breakMinutes)}</em>
-                </span>
-                <Badge tone="green">{formatMinutes(item.totalMinutes)}</Badge>
-              </div>
-            ))}
-          </div>
         ) : (
-          <StateCard title="No payroll-ready hours" description="Choose a pay period with completed, exception-free time entries." tone="slate" />
+          <>
+            {prep.exceptions.length ? (
+              <div className="grid gap-2 rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">Review exceptions before approval</p>
+                {prep.exceptions.slice(0, 4).map((item) => (item.active && typeof onAdminClockOut === "function" ? (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-2 text-left transition hover:border-amber-300 disabled:opacity-60"
+                    onClick={() => onAdminClockOut(item.id, item.userName)}
+                    disabled={busy}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-black text-slate-950">{item.userName} / {item.jobTitle}</span>
+                      <span className="mt-0.5 block text-xs font-bold text-slate-600">{item.reason} — tap to clock out</span>
+                    </span>
+                    <Badge tone="amber">Clock out</Badge>
+                  </button>
+                ) : (
+                  <div key={item.id} className="rounded-xl border border-amber-100 bg-white p-2 text-left">
+                    <span className="block text-xs font-black text-slate-950">{item.userName} / {item.jobTitle}</span>
+                    <span className="mt-0.5 block text-xs font-bold text-slate-600">{item.reason}</span>
+                  </div>
+                )))}
+                {prep.exceptions.length > 4 ? <p className="text-xs font-bold text-amber-800">{prep.exceptions.length - 4} more exception{prep.exceptions.length - 4 === 1 ? "" : "s"} in this period.</p> : null}
+              </div>
+            ) : null}
+            {prep.employeeSummaries.length ? (
+              <div className="grid gap-2">
+                {prep.employeeSummaries.slice(0, 4).map((item) => (
+                  <div key={item.userId || item.userName} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
+                    <span className="min-w-0">
+                      <strong className="block truncate text-xs font-black text-slate-950">{item.userName}</strong>
+                      <em className="block text-[11px] font-bold not-italic text-slate-500">{item.entries} entr{item.entries === 1 ? "y" : "ies"} / break {formatMinutes(item.breakMinutes)}</em>
+                    </span>
+                    <Badge tone="green">{formatMinutes(item.totalMinutes)}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : prep.exceptions.length ? null : (
+              <StateCard title="No payroll-ready hours" description="Choose a pay period with completed, exception-free time entries." tone="slate" />
+            )}
+          </>
         )}
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="secondary" onClick={() => onApprove?.(period)} disabled={busy || !prep.canApprove}>
@@ -337,6 +357,7 @@ export function TimePage({
   onReviewTimePresence,
   onApprovePayrollPrep,
   onExportPayrollPrep,
+  onAdminClockOutTimeEntry,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -377,6 +398,7 @@ export function TimePage({
       busy={busy}
       onApprove={onApprovePayrollPrep}
       onExport={onExportPayrollPrep}
+      onAdminClockOut={onAdminClockOutTimeEntry}
     />
   ) : null;
   const pageEyebrow = canViewAll ? "Time" : canViewCrew ? "Field Time" : "My Time";
